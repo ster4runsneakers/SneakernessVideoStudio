@@ -267,6 +267,9 @@ def analyze_shoe_with_gemini(
                 config=types.GenerateContentConfig(
                     temperature=0.2,
                     response_mime_type="application/json",
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
                 ),
             )
             text = (getattr(resp, "text", None) or "").strip()
@@ -284,6 +287,11 @@ def analyze_shoe_with_gemini(
                 resp = client.models.generate_content(
                     model=m,
                     contents=[ANALYZE_SYSTEM + "\n\n" + user_text, image_part],
+                    config=types.GenerateContentConfig(
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                            disable=True
+                        ),
+                    ),
                 )
                 text = (getattr(resp, "text", None) or "").strip()
                 if text:

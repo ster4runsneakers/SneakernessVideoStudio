@@ -229,7 +229,7 @@ def main() -> None:
     with col_reset:
         st.write("")
         st.write("")
-        if st.button("🧹 Νέο Παπούτσι / Clear", use_container_width=True):
+        if st.button("🧹 Νέο Παπούτσι / Clear", width="stretch"):
             clear_all_fields()
             st.rerun()
 
@@ -295,13 +295,13 @@ def main() -> None:
         )
     with col_preview:
         if uploaded_file:
-            st.image(uploaded_file[0], caption="Προεπισκόπηση", use_container_width=True)
+            st.image(uploaded_file[0], caption="Προεπισκόπηση", width="stretch")
 
     analyze_col1, analyze_col2 = st.columns([2, 1])
     with analyze_col1:
         do_analyze = st.button(
             "🔍 Ανίχνευση / Scene (Auto: Grok → Gemini → defaults)",
-            use_container_width=True,
+            width="stretch",
         )
     with analyze_col2:
         use_demo = st.checkbox("Demo placeholders", value=False)
@@ -458,7 +458,7 @@ def main() -> None:
             disabled=not api_ok,
         )
 
-        if st.button("🚀 Δημιουργία Grok Content Pack", type="primary", use_container_width=True):
+        if st.button("🚀 Δημιουργία Grok Content Pack", type="primary", width="stretch"):
             if not brand or not model_name:
                 st.error("⚠️ Συμπλήρωσε Brand και Model.")
             else:
@@ -551,7 +551,7 @@ def main() -> None:
                     data=content,
                     file_name=safe_name,
                     mime="text/plain",
-                    use_container_width=True,
+                    width="stretch",
                 )
                 out_dir = Path("output")
                 out_dir.mkdir(exist_ok=True)
@@ -588,7 +588,7 @@ def main() -> None:
             cols = st.columns(min(4, len(image_paths)))
             for i, p in enumerate(image_paths[:8]):
                 with cols[i % len(cols)]:
-                    st.image(p, use_container_width=True, caption=f"#{i+1}")
+                    st.image(p, width="stretch", caption=f"#{i+1}")
 
         opts = template_options_el()
         label = st.selectbox("Οπτικό template (slideshow)", list(opts.keys()), index=0)
@@ -612,7 +612,7 @@ def main() -> None:
         st.caption(f"On-video hook: **{hook}** · subtitle: **{sub}**")
 
         can_run = len(image_paths) > 0
-        if st.button("🎬 Δημιουργία τοπικού MP4", disabled=not can_run, use_container_width=True):
+        if st.button("🎬 Δημιουργία τοπικού MP4", disabled=not can_run, width="stretch"):
             with st.spinner("Rendering slideshow…"):
                 out_path = work / "output" / f"sneaker_{tid}.mp4"
                 try:
@@ -644,7 +644,7 @@ def main() -> None:
                     data=f,
                     file_name=Path(vp).name,
                     mime="video/mp4",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
         with st.expander("Όλα τα slideshow templates"):
