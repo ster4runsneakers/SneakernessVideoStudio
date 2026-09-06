@@ -58,82 +58,130 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
 
   :root {
-    --snk-pink: #ff2d55;
-    --snk-orange: #ff6b35;
-    --snk-cyan: #00e5ff;
-    --snk-violet: #7c5cff;
-    --snk-bg: #050508;
-    --snk-panel: rgba(22, 22, 32, 0.92);
-    --snk-border: rgba(255,255,255,0.09);
+    --em-emerald: #10b981;
+    --em-emerald-deep: #059669;
+    --em-gold: #fbbf24;
+    --em-gold-soft: #f59e0b;
+    --em-navy: #06101c;
+    --em-teal: #0a1f2e;
+    --em-panel: rgba(8, 28, 42, 0.92);
+    --em-border: rgba(16, 185, 129, 0.18);
   }
 
   html, body, [class*="css"], .stApp {
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   }
 
   .stApp {
     background:
-      radial-gradient(1100px 520px at 8% -12%, rgba(255,45,85,0.16) 0%, transparent 55%),
-      radial-gradient(900px 480px at 92% 0%, rgba(0,229,255,0.10) 0%, transparent 50%),
-      radial-gradient(800px 600px at 50% 110%, rgba(124,92,255,0.08) 0%, transparent 45%),
-      linear-gradient(180deg, #12121a 0%, #0b0b0f 42%, #050508 100%);
-    color: #f2f2f5;
+      radial-gradient(1000px 500px at 6% -10%, rgba(16,185,129,0.18) 0%, transparent 55%),
+      radial-gradient(900px 480px at 96% 4%, rgba(251,191,36,0.10) 0%, transparent 50%),
+      radial-gradient(700px 500px at 50% 105%, rgba(6,78,92,0.35) 0%, transparent 45%),
+      linear-gradient(165deg, #0a1f2e 0%, #06101c 45%, #030b14 100%);
+    color: #e8f5f0;
   }
 
   .block-container {
-    padding-top: 1.1rem;
-    padding-bottom: 2.4rem;
+    padding-top: 1rem;
+    padding-bottom: 2.6rem;
     max-width: 1180px;
   }
   header[data-testid="stHeader"] { background: transparent; }
   footer { visibility: hidden; }
-  h1, h2, h3, h4 { letter-spacing: -0.02em; color: #f7f7fa; }
+  h1, h2, h3, h4 { letter-spacing: -0.02em; color: #f0fdf8; }
 
-  /* Hero */
+  /* Status strip */
+  .status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin: 0 0 1rem 0;
+  }
+  .status-chip {
+    flex: 1 1 140px;
+    min-width: 120px;
+    background: linear-gradient(145deg, rgba(8,36,52,0.95) 0%, rgba(4,20,32,0.98) 100%);
+    border: 1px solid rgba(16,185,129,0.28);
+    border-left: 3px solid var(--em-gold);
+    border-radius: 12px;
+    padding: 0.7rem 0.9rem;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.32);
+  }
+  .status-chip .chip-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #fbbf24;
+    margin-bottom: 0.2rem;
+  }
+  .status-chip .chip-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ecfdf5;
+  }
+
+  /* Hero — Electric Midnight */
   .hero {
-    padding: 1.35rem 1.5rem 1.25rem;
-    border-radius: 20px;
+    padding: 1.4rem 1.55rem 1.3rem;
+    border-radius: 18px;
     background:
-      linear-gradient(135deg, rgba(255,45,85,0.22) 0%, rgba(255,107,53,0.10) 40%, rgba(0,229,255,0.08) 100%),
-      rgba(16,16,24,0.75);
-    border: 1px solid rgba(255,255,255,0.10);
-    box-shadow: 0 14px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
-    margin-bottom: 0.85rem;
+      linear-gradient(135deg, rgba(16,185,129,0.20) 0%, rgba(6,78,92,0.35) 45%, rgba(251,191,36,0.08) 100%),
+      rgba(4, 22, 34, 0.88);
+    border: 1px solid rgba(16,185,129,0.32);
+    border-left: 4px solid #fbbf24;
+    box-shadow: 0 16px 44px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.05);
+    margin-bottom: 0.75rem;
     position: relative;
     overflow: hidden;
   }
   .hero::after {
     content: "";
     position: absolute;
-    right: -40px; top: -40px;
-    width: 160px; height: 160px;
-    background: radial-gradient(circle, rgba(0,229,255,0.18), transparent 70%);
+    right: -50px; top: -50px;
+    width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(251,191,36,0.16), transparent 70%);
     pointer-events: none;
   }
   .hero h1 {
-    margin: 0 0 0.4rem 0;
+    margin: 0.35rem 0 0.45rem 0;
     font-weight: 800;
     font-size: clamp(1.45rem, 3.6vw, 1.95rem);
     line-height: 1.15;
+    color: #f0fdf8;
   }
-  .hero p { margin: 0; opacity: 0.88; font-size: 0.95rem; line-height: 1.45; }
+  .hero p { margin: 0; opacity: 0.9; font-size: 0.95rem; line-height: 1.45; color: #c8e6d8; }
   .hero-kicker {
     display: inline-block;
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: #ff8fa3;
-    margin-bottom: 0.35rem;
+    color: #34d399;
+    margin-bottom: 0.25rem;
+  }
+  .ui-version-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    background: linear-gradient(90deg, #10b981, #059669);
+    color: #041018;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 0.28rem 0.7rem;
+    border-radius: 8px;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.45rem;
+    border: 1px solid rgba(251,191,36,0.55);
+    box-shadow: 0 0 18px rgba(16,185,129,0.35), 0 0 8px rgba(251,191,36,0.2);
   }
 
   .grok-badge {
     display: inline-block;
-    background: linear-gradient(90deg, #00e5ff, #7c5cff);
-    color: #0b0b0f;
+    background: linear-gradient(90deg, #fbbf24, #10b981);
+    color: #041018;
     font-weight: 800;
     font-size: 0.68rem;
     padding: 0.18rem 0.55rem;
@@ -144,40 +192,44 @@ st.markdown(
 
   .step-badge {
     display: inline-block;
-    background: linear-gradient(90deg, #ff2d55, #ff6b35);
-    color: white;
+    background: linear-gradient(90deg, #10b981, #059669);
+    color: #041018;
     font-weight: 700;
     font-size: 0.72rem;
     padding: 0.22rem 0.6rem;
     border-radius: 999px;
     margin-bottom: 0.45rem;
     letter-spacing: 0.04em;
-    box-shadow: 0 4px 14px rgba(255,45,85,0.28);
+    box-shadow: 0 4px 14px rgba(16,185,129,0.32);
   }
   .step-badge.secondary {
-    background: linear-gradient(90deg, #7c5cff, #00e5ff);
-    box-shadow: 0 4px 14px rgba(124,92,255,0.25);
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    color: #1a1200;
+    box-shadow: 0 4px 14px rgba(251,191,36,0.28);
   }
   .step-badge.muted {
-    background: rgba(255,255,255,0.12);
+    background: rgba(16,185,129,0.14);
+    color: #a7f3d0;
+    border: 1px solid rgba(16,185,129,0.28);
     box-shadow: none;
   }
 
-  /* Section cards */
+  /* Section cards — left gold border */
   .ui-card {
-    background: linear-gradient(160deg, rgba(28,28,40,0.95) 0%, rgba(14,14,20,0.98) 100%);
-    border: 1px solid var(--snk-border);
-    border-radius: 16px;
-    padding: 1rem 1.1rem 1.05rem;
+    background: linear-gradient(160deg, rgba(10,40,56,0.95) 0%, rgba(4,18,28,0.98) 100%);
+    border: 1px solid rgba(16,185,129,0.16);
+    border-left: 4px solid #fbbf24;
+    border-radius: 14px;
+    padding: 1rem 1.15rem 1.05rem;
     margin: 0.55rem 0 1rem 0;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.32);
   }
   .ui-card-title {
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #a8a3b8;
+    color: #fbbf24;
     margin: 0 0 0.55rem 0;
   }
 
@@ -185,60 +237,63 @@ st.markdown(
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(16,185,129,0.10);
+    border: 1px solid rgba(16,185,129,0.22);
     border-radius: 999px;
     padding: 0.28rem 0.7rem;
     font-size: 0.78rem;
-    color: #d4d0e0;
+    color: #a7f3d0;
     margin: 0.15rem 0.25rem 0.15rem 0;
   }
 
-  /* Sidebar */
+  /* Sidebar — gold uppercase title */
   div[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0e0e16 0%, #0a0a10 100%);
-    border-right: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, #051820 0%, #030d14 100%);
+    border-right: 1px solid rgba(16,185,129,0.14);
   }
   div[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
   .sidebar-title {
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 800;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: #ff8fa3;
+    color: #fbbf24;
     margin: 0 0 0.65rem 0;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid rgba(251,191,36,0.35);
   }
 
-  /* Buttons */
+  /* Buttons — emerald gradient */
   .stButton > button {
-    background: linear-gradient(90deg, #ff2d55, #ff6b35);
-    color: white !important;
-    border: none;
+    background: linear-gradient(90deg, #10b981, #059669) !important;
+    color: #041018 !important;
+    border: none !important;
     font-weight: 700;
     border-radius: 12px;
     min-height: 2.6rem;
-    box-shadow: 0 6px 18px rgba(255,45,85,0.22);
+    box-shadow: 0 6px 18px rgba(16,185,129,0.28);
   }
   .stButton > button:hover {
-    filter: brightness(1.08);
-    border: none;
-    color: white !important;
+    filter: brightness(1.1);
+    border: none !important;
+    color: #041018 !important;
+    box-shadow: 0 8px 22px rgba(16,185,129,0.4);
   }
   .stButton > button:disabled {
     opacity: 0.45;
     box-shadow: none;
   }
   .stDownloadButton > button {
-    background: #111827;
-    border: 1px solid rgba(255,255,255,0.15);
-    color: #fff !important;
+    background: #0a2434 !important;
+    border: 1px solid rgba(251,191,36,0.35) !important;
+    color: #fbbf24 !important;
     border-radius: 12px;
     font-weight: 600;
     min-height: 2.55rem;
   }
   .stDownloadButton > button:hover {
-    border-color: rgba(0,229,255,0.45);
-    color: #fff !important;
+    border-color: rgba(16,185,129,0.55) !important;
+    color: #34d399 !important;
   }
 
   /* Inputs */
@@ -246,30 +301,31 @@ st.markdown(
     border-radius: 10px !important;
   }
 
-  /* Tabs */
+  /* Tabs — emerald selected */
   .stTabs [data-baseweb="tab-list"] {
     gap: 0.4rem;
-    background: rgba(18,18,28,0.75);
+    background: rgba(4, 22, 34, 0.85);
     border-radius: 14px;
     padding: 0.35rem;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(16,185,129,0.18);
     margin-bottom: 0.35rem;
   }
   .stTabs [data-baseweb="tab"] {
     border-radius: 10px;
     padding: 0.55rem 0.95rem;
-    color: #a8a3b8;
+    color: #7dd3b0;
     font-weight: 600;
   }
   .stTabs [aria-selected="true"] {
-    background: linear-gradient(90deg, rgba(255,45,85,0.28), rgba(124,92,255,0.22)) !important;
-    color: #f7f7fa !important;
+    background: linear-gradient(90deg, rgba(16,185,129,0.45), rgba(5,150,105,0.28)) !important;
+    color: #ecfdf5 !important;
+    box-shadow: inset 0 -2px 0 #10b981;
   }
 
   /* Code / prompts */
   .stCodeBlock {
     border-radius: 12px !important;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(16,185,129,0.15);
   }
 
   /* Mobile */
@@ -282,11 +338,13 @@ st.markdown(
     .hero { padding: 1.1rem 1rem; border-radius: 16px; }
     .ui-card { padding: 0.85rem 0.85rem; border-radius: 14px; }
     .stTabs [data-baseweb="tab"] { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
+    .status-chip { flex: 1 1 100%; }
   }
 </style>
 """,
     unsafe_allow_html=True,
 )
+
 
 
 def _init_session() -> None:
@@ -383,6 +441,7 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
+              <div class="ui-version-badge">UI v4 · Electric Midnight</div>
               <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>
@@ -399,6 +458,26 @@ def main() -> None:
         if st.button("🧹 Νέο Παπούτσι / Clear", width="stretch"):
             clear_all_fields()
             st.rerun()
+
+    st.markdown(
+        """
+        <div class="status-strip">
+          <div class="status-chip">
+            <div class="chip-label">Analyze</div>
+            <div class="chip-value">Gemini · Grok Vision</div>
+          </div>
+          <div class="status-chip">
+            <div class="chip-label">Grok Pack</div>
+            <div class="chip-value">Cinematic Prompts</div>
+          </div>
+          <div class="status-chip">
+            <div class="chip-label">Slideshow</div>
+            <div class="chip-value">Local MP4 Export</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.sidebar:
         st.markdown('<div class="sidebar-title">Ρυθμίσεις</div>', unsafe_allow_html=True)
@@ -454,7 +533,11 @@ def main() -> None:
         )
 
     # ---- Upload ----
-    st.markdown('<div class="step-badge">ΒΗΜΑ 1</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="ui-card"><div class="ui-card-title">Upload &amp; Analyze</div>'
+        '<div class="step-badge">ΒΗΜΑ 1</div></div>',
+        unsafe_allow_html=True,
+    )
     st.subheader("Φωτογραφία / προϊόν")
     st.caption("Upload · analyze · συμπλήρωση πεδίων")
 
@@ -530,7 +613,8 @@ def main() -> None:
 
     # ---- Fields ----
     st.markdown(
-        '<div class="step-badge muted">ΒΗΜΑ 2</div>',
+        '<div class="ui-card"><div class="ui-card-title">Product Details</div>'
+        '<div class="step-badge muted">ΒΗΜΑ 2</div></div>',
         unsafe_allow_html=True,
     )
     st.markdown("#### Στοιχεία προϊόντος")
