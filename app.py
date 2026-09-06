@@ -58,64 +58,230 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-  html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --snk-pink: #ff2d55;
+    --snk-orange: #ff6b35;
+    --snk-cyan: #00e5ff;
+    --snk-violet: #7c5cff;
+    --snk-bg: #050508;
+    --snk-panel: rgba(22, 22, 32, 0.92);
+    --snk-border: rgba(255,255,255,0.09);
+  }
+
+  html, body, [class*="css"], .stApp {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  }
+
   .stApp {
-    background: radial-gradient(1200px 600px at 10% -10%, #1a1a22 0%, #0b0b0f 45%, #050508 100%);
+    background:
+      radial-gradient(1100px 520px at 8% -12%, rgba(255,45,85,0.16) 0%, transparent 55%),
+      radial-gradient(900px 480px at 92% 0%, rgba(0,229,255,0.10) 0%, transparent 50%),
+      radial-gradient(800px 600px at 50% 110%, rgba(124,92,255,0.08) 0%, transparent 45%),
+      linear-gradient(180deg, #12121a 0%, #0b0b0f 42%, #050508 100%);
     color: #f2f2f5;
   }
-  h1, h2, h3 { letter-spacing: -0.02em; }
+
+  .block-container {
+    padding-top: 1.1rem;
+    padding-bottom: 2.4rem;
+    max-width: 1180px;
+  }
+  header[data-testid="stHeader"] { background: transparent; }
+  footer { visibility: hidden; }
+  h1, h2, h3, h4 { letter-spacing: -0.02em; color: #f7f7fa; }
+
+  /* Hero */
   .hero {
-    padding: 1.2rem 1.4rem;
-    border-radius: 18px;
-    background: linear-gradient(135deg, rgba(255,45,85,0.18), rgba(0,229,255,0.08));
-    border: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 1rem;
+    padding: 1.35rem 1.5rem 1.25rem;
+    border-radius: 20px;
+    background:
+      linear-gradient(135deg, rgba(255,45,85,0.22) 0%, rgba(255,107,53,0.10) 40%, rgba(0,229,255,0.08) 100%),
+      rgba(16,16,24,0.75);
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+    margin-bottom: 0.85rem;
+    position: relative;
+    overflow: hidden;
   }
-  .hero h1 { margin: 0 0 0.35rem 0; font-weight: 800; font-size: 1.85rem; }
-  .hero p { margin: 0; opacity: 0.85; }
-  .step-badge {
+  .hero::after {
+    content: "";
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(0,229,255,0.18), transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    margin: 0 0 0.4rem 0;
+    font-weight: 800;
+    font-size: clamp(1.45rem, 3.6vw, 1.95rem);
+    line-height: 1.15;
+  }
+  .hero p { margin: 0; opacity: 0.88; font-size: 0.95rem; line-height: 1.45; }
+  .hero-kicker {
     display: inline-block;
-    background: #ff2d55;
-    color: white;
+    font-size: 0.68rem;
     font-weight: 700;
-    font-size: 0.75rem;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    margin-bottom: 0.4rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #ff8fa3;
+    margin-bottom: 0.35rem;
   }
+
   .grok-badge {
     display: inline-block;
     background: linear-gradient(90deg, #00e5ff, #7c5cff);
     color: #0b0b0f;
     font-weight: 800;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
+    font-size: 0.68rem;
+    padding: 0.18rem 0.55rem;
     border-radius: 6px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
   }
-  div[data-testid="stSidebar"] {
-    background: #0e0e14;
-    border-right: 1px solid rgba(255,255,255,0.06);
-  }
-  .stButton > button {
+
+  .step-badge {
+    display: inline-block;
     background: linear-gradient(90deg, #ff2d55, #ff6b35);
     color: white;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 0.45rem;
+    letter-spacing: 0.04em;
+    box-shadow: 0 4px 14px rgba(255,45,85,0.28);
+  }
+  .step-badge.secondary {
+    background: linear-gradient(90deg, #7c5cff, #00e5ff);
+    box-shadow: 0 4px 14px rgba(124,92,255,0.25);
+  }
+  .step-badge.muted {
+    background: rgba(255,255,255,0.12);
+    box-shadow: none;
+  }
+
+  /* Section cards */
+  .ui-card {
+    background: linear-gradient(160deg, rgba(28,28,40,0.95) 0%, rgba(14,14,20,0.98) 100%);
+    border: 1px solid var(--snk-border);
+    border-radius: 16px;
+    padding: 1rem 1.1rem 1.05rem;
+    margin: 0.55rem 0 1rem 0;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+  }
+  .ui-card-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #a8a3b8;
+    margin: 0 0 0.55rem 0;
+  }
+
+  .flow-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    font-size: 0.78rem;
+    color: #d4d0e0;
+    margin: 0.15rem 0.25rem 0.15rem 0;
+  }
+
+  /* Sidebar */
+  div[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0e0e16 0%, #0a0a10 100%);
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  div[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
+  .sidebar-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #ff8fa3;
+    margin: 0 0 0.65rem 0;
+  }
+
+  /* Buttons */
+  .stButton > button {
+    background: linear-gradient(90deg, #ff2d55, #ff6b35);
+    color: white !important;
     border: none;
     font-weight: 700;
     border-radius: 12px;
+    min-height: 2.6rem;
+    box-shadow: 0 6px 18px rgba(255,45,85,0.22);
   }
   .stButton > button:hover {
     filter: brightness(1.08);
     border: none;
-    color: white;
+    color: white !important;
+  }
+  .stButton > button:disabled {
+    opacity: 0.45;
+    box-shadow: none;
   }
   .stDownloadButton > button {
     background: #111827;
     border: 1px solid rgba(255,255,255,0.15);
-    color: #fff;
+    color: #fff !important;
     border-radius: 12px;
     font-weight: 600;
+    min-height: 2.55rem;
+  }
+  .stDownloadButton > button:hover {
+    border-color: rgba(0,229,255,0.45);
+    color: #fff !important;
+  }
+
+  /* Inputs */
+  .stTextInput input, .stTextArea textarea, .stSelectbox [data-baseweb="select"] > div {
+    border-radius: 10px !important;
+  }
+
+  /* Tabs */
+  .stTabs [data-baseweb="tab-list"] {
+    gap: 0.4rem;
+    background: rgba(18,18,28,0.75);
+    border-radius: 14px;
+    padding: 0.35rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 0.35rem;
+  }
+  .stTabs [data-baseweb="tab"] {
+    border-radius: 10px;
+    padding: 0.55rem 0.95rem;
+    color: #a8a3b8;
+    font-weight: 600;
+  }
+  .stTabs [aria-selected="true"] {
+    background: linear-gradient(90deg, rgba(255,45,85,0.28), rgba(124,92,255,0.22)) !important;
+    color: #f7f7fa !important;
+  }
+
+  /* Code / prompts */
+  .stCodeBlock {
+    border-radius: 12px !important;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .block-container {
+      padding-left: 0.85rem;
+      padding-right: 0.85rem;
+      padding-top: 0.75rem;
+    }
+    .hero { padding: 1.1rem 1rem; border-radius: 16px; }
+    .ui-card { padding: 0.85rem 0.85rem; border-radius: 14px; }
+    .stTabs [data-baseweb="tab"] { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
   }
 </style>
 """,
@@ -217,10 +383,11 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
+              <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>
                 <span class="grok-badge">GROK / xAI</span>
-                &nbsp; Soft-discovery · Grok Prompt Pack · optional Gemini/xAI analyze · τοπικό slideshow
+                &nbsp; Soft-discovery creatives · cinematic prompt pack · Gemini/xAI analyze · τοπικό slideshow
               </p>
             </div>
             """,
@@ -234,7 +401,8 @@ def main() -> None:
             st.rerun()
 
     with st.sidebar:
-        st.markdown("### Ρυθμίσεις")
+        st.markdown('<div class="sidebar-title">Ρυθμίσεις</div>', unsafe_allow_html=True)
+        st.caption("API keys · captions · aspects")
         api_ok = has_xai_key()
         gemini_ok = has_gemini_key()
         if api_ok:
@@ -278,15 +446,17 @@ def main() -> None:
         st.markdown("---")
         st.markdown("**Ροή**")
         st.markdown(
-            "1. Upload / πεδία  \n"
-            "2. Grok Prompts (κύριο)  \n"
-            "3. Captions + Content Pack  \n"
-            "4. Τοπικό Slideshow (δευτερεύον)"
+            '<span class="flow-chip">1 Upload</span>'
+            '<span class="flow-chip">2 Grok Prompts</span>'
+            '<span class="flow-chip">3 Captions/Pack</span>'
+            '<span class="flow-chip">4 Slideshow</span>',
+            unsafe_allow_html=True,
         )
 
     # ---- Upload ----
     st.markdown('<div class="step-badge">ΒΗΜΑ 1</div>', unsafe_allow_html=True)
     st.subheader("Φωτογραφία / προϊόν")
+    st.caption("Upload · analyze · συμπλήρωση πεδίων")
 
     col_up, col_preview = st.columns([2, 1])
     with col_up:
@@ -359,6 +529,10 @@ def main() -> None:
             st.rerun()
 
     # ---- Fields ----
+    st.markdown(
+        '<div class="step-badge muted">ΒΗΜΑ 2</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown("#### Στοιχεία προϊόντος")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -449,7 +623,9 @@ def main() -> None:
 
     st.markdown("---")
 
-    tab_grok, tab_local = st.tabs(["🎬 Grok Prompts", "🎞️ Τοπικό Slideshow"])
+    tab_grok, tab_caps, tab_local = st.tabs(
+        ["🎬 Grok Prompts", "📲 Captions / Pack", "🎞️ Τοπικό Slideshow"]
+    )
 
     # =====================================================================
     # TAB: Grok Prompts (primary)
@@ -513,20 +689,41 @@ def main() -> None:
                     st.session_state["last_ad_texts"] = ad_texts
                     st.session_state["last_grok_pack"] = pack
                     st.session_state["last_content_pack"] = content
-                st.success("Έτοιμο — Grok prompts παρακάτω.")
+                st.success("Έτοιμο — Grok prompts παρακάτω · captions στο tab Captions/Pack.")
 
         pack = st.session_state.get("last_grok_pack")
         ad_texts = st.session_state.get("last_ad_texts")
         content = st.session_state.get("last_content_pack")
 
         if pack:
-            st.markdown("#### ✨ Grok Video Prompts (copy-paste)")
-            # Prefer showing primary aspect beats first (dict preserves insertion order)
+            st.markdown(
+                '<div class="ui-card"><div class="ui-card-title">Copy-paste into Grok</div>'
+                '<div style="opacity:0.85;font-size:0.9rem;margin:0">'
+                'Beats + continuous prompts ready for Grok video / image-to-video.'
+                '</div></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown("#### ✨ Grok Video Prompts")
             for label, body in pack.items():
                 st.markdown(f"**{label}**")
                 st.code(body, language="text")
+            st.info("Captions & downloadable Content Pack → tab **Captions / Pack**.")
+        else:
+            st.info("Πάτα «Δημιουργία Grok Content Pack» για prompts βελτιστοποιημένα για Grok.")
 
-            st.markdown("---")
+    # =====================================================================
+    # TAB: Captions / Pack
+    # =====================================================================
+    with tab_caps:
+        st.markdown('<div class="step-badge secondary">CAPTIONS</div>', unsafe_allow_html=True)
+        st.subheader("Soft Discovery Captions & Content Pack")
+        st.caption("EN soft-discovery captions · Ελληνικά · downloadable .txt pack.")
+
+        pack = st.session_state.get("last_grok_pack")
+        ad_texts = st.session_state.get("last_ad_texts")
+        content = st.session_state.get("last_content_pack")
+
+        if ad_texts or content:
             st.markdown("### 📲 Soft Discovery Captions")
             t1, t2, t3 = st.tabs(
                 ["📘 FB / IG (EN)", "🎵 TikTok (EN)", "🇬🇷 Ελληνικά"]
@@ -571,13 +768,15 @@ def main() -> None:
                 except Exception:
                     pass
         else:
-            st.info("Πάτα «Δημιουργία Grok Content Pack» για prompts βελτιστοποιημένα για Grok.")
+            st.info(
+                "Δημιούργησε πρώτα Content Pack από το tab Grok Prompts για captions & download."
+            )
 
-    # =====================================================================
+        # =====================================================================
     # TAB: Local Slideshow (secondary)
     # =====================================================================
     with tab_local:
-        st.markdown('<div class="step-badge">ΔΕΥΤΕΡΕΥΟΝ</div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-badge muted">ΔΕΥΤΕΡΕΥΟΝ</div>', unsafe_allow_html=True)
         st.subheader("Τοπικό Slideshow MP4")
         st.caption("Υπάρχον video_builder — slideshow από uploaded φωτό. Δεν αντικαθιστά τα Grok prompts.")
 
