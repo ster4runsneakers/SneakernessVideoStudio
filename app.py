@@ -441,7 +441,7 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
-              <div class="ui-version-badge">UI v4.2 · Electric Midnight · Pinterest captions</div>
+              <div class="ui-version-badge">UI v4.3 · Electric Midnight · Voice/Music + Pinterest</div>
               <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>
@@ -747,6 +747,34 @@ def main() -> None:
             disabled=not api_ok,
         )
 
+        st.markdown("#### 🎙️ Ήχος στο Grok video prompt")
+        st.caption(
+            "Οδηγίες μέσα στο prompt (Grok/Aurora). Δεν παράγει τοπικό αρχείο ήχου — "
+            "λέει στο μοντέλο αν θέλεις VO + instrumental bed."
+        )
+        c_voice, c_music = st.columns(2)
+        with c_voice:
+            include_voice = st.checkbox("Ομιλία / voiceover", value=False)
+            voice_lang = st.selectbox(
+                "Γλώσσα ομιλίας",
+                ["en", "el"],
+                format_func=lambda x: "English" if x == "en" else "Ελληνικά",
+                disabled=not include_voice,
+            )
+        with c_music:
+            include_music = st.checkbox("Μουσική (instrumental bed)", value=True)
+            music_mood = st.selectbox(
+                "Ύφος μουσικής",
+                [
+                    "soft cinematic",
+                    "warm ambient",
+                    "upbeat modern",
+                    "minimal electronic",
+                    "lo-fi calm",
+                ],
+                disabled=not include_music,
+            )
+
         if st.button("🚀 Δημιουργία Grok Content Pack", type="primary", width="stretch"):
             if not brand or not model_name:
                 st.error("⚠️ Συμπλήρωσε Brand και Model.")
@@ -765,6 +793,12 @@ def main() -> None:
                     else:
                         ad_texts = generate_ad_texts(info)
 
+                    audio_kw = dict(
+                        include_voice=include_voice,
+                        voice_lang=voice_lang,
+                        include_music=include_music,
+                        music_mood=music_mood,
+                    )
                     pack = build_grok_prompt_pack(
                         info,
                         aspect=aspect,
@@ -772,6 +806,7 @@ def main() -> None:
                         include_beats=True,
                         include_continuous=True,
                         ad_texts=ad_texts,
+                        **audio_kw,
                     )
                     if dual_aspect:
                         for other in ("9:16", "1:1", "16:9", "2:3"):
@@ -785,6 +820,7 @@ def main() -> None:
                                     include_beats=True,
                                     include_continuous=True,
                                     ad_texts=ad_texts,
+                                    **audio_kw,
                                 )
                             )
 
@@ -826,9 +862,32 @@ def main() -> None:
         ad_texts = st.session_state.get("last_ad_texts")
         content = st.session_state.get("last_content_pack")
 
-        if ad_texts or content:
+        # Always offer live Pinterest from current product fields (even before pack)
+        if st.button("🔄 Ανανέωση captions από πεδία προϊόντος", key="refresh_caps"):
+            fresh = generate_ad_texts(info)
+            st.session_state["last_ad_texts"] = fresh
+            ad_texts = fresh
+            st.success("Captions ανανεώθηκαν — δες και το Pinterest tab.")
+
+        if ad_texts or content or (brand and model_name):
             st.markdown("### 📲 Soft Discovery Captions")
-            ad_texts = ad_texts or {}
+            ad_texts = dict(ad_texts or {})
+            # Backfill Pinterest if missing (old session / partial deploy / xAI JSON)
+            if not ad_texts.get("pinterest_caption") or not ad_texts.get("pinterest_caption_el"):
+                fresh = generate_ad_texts(info)
+                ad_texts.setdefault("pinterest_caption", fresh["pinterest_caption"])
+                ad_texts.setdefault("pinterest_caption_el", fresh["pinterest_caption_el"])
+                if not ad_texts.get("pinterest_caption"):
+                    ad_texts["pinterest_caption"] = fresh["pinterest_caption"]
+                if not ad_texts.get("pinterest_caption_el"):
+                    ad_texts["pinterest_caption_el"] = fresh["pinterest_caption_el"]
+                for k, v in fresh.items():
+                    ad_texts.setdefault(k, v)
+                st.session_state["last_ad_texts"] = ad_texts
+
+            pin_en_val = ad_texts.get("pinterest_caption") or generate_ad_texts(info)["pinterest_caption"]
+            pin_el_val = ad_texts.get("pinterest_caption_el") or generate_ad_texts(info)["pinterest_caption_el"]
+
             t1, t2, t3, t4 = st.tabs(
                 ["📘 FB / IG (EN)", "🎵 TikTok (EN)", "📌 Pinterest", "🇬🇷 Ελληνικά"]
             )
@@ -849,22 +908,19 @@ def main() -> None:
                     height=120,
                 )
             with t3:
-                st.caption("Short · scannable · keyword-forward (Pinterest SEO)")
-                pin_en, pin_el = st.tabs(["EN", "EL"])
-                with pin_en:
-                    st.text_area(
-                        "Pinterest EN",
-                        value=ad_texts.get("pinterest_caption", ""),
-                        height=200,
-                        key="pin_en_area",
-                    )
-                with pin_el:
-                    st.text_area(
-                        "Pinterest EL",
-                        value=ad_texts.get("pinterest_caption_el", ""),
-                        height=200,
-                        key="pin_el_area",
-                    )
+                st.caption("Short · scannable · keyword-forward (Pinterest SEO) — EN + EL stacked")
+                st.text_area(
+                    "📌 Pinterest EN",
+                    value=pin_en_val,
+                    height=220,
+                    key="pin_en_area_v43",
+                )
+                st.text_area(
+                    "📌 Pinterest EL",
+                    value=pin_el_val,
+                    height=220,
+                    key="pin_el_area_v43",
+                )
             with t4:
                 st.text_area(
                     "Ελληνικά (FB/IG style)",
@@ -900,7 +956,16 @@ def main() -> None:
     with tab_local:
         st.markdown('<div class="step-badge muted">ΔΕΥΤΕΡΕΥΟΝ</div>', unsafe_allow_html=True)
         st.subheader("Τοπικό Slideshow MP4")
-        st.caption("Υπάρχον video_builder — slideshow από uploaded φωτό. Δεν αντικαθιστά τα Grok prompts.")
+        st.markdown(
+            """
+**Τι κάνει ακριβώς:** παίρνει τις φωτό που ανέβασες, τις κόβει στο aspect του template,
+προσθέτει (προαιρετικά) burn-in τίτλο/υπότιτλο, Ken Burns / transitions, και τις ενώνει σε **ένα MP4**.
+
+- Δεν είναι AI video (όπως Grok) — είναι κλασικό slideshow από τις εικόνες σου.
+- Δεν φτιάχνει ομιλία ούτε μουσική αρχείο (μόνο οπτικά + κείμενο πάνω στις φωτό).
+- Χρήσιμο για γρήγορο draft / placeholder όταν δεν θες ακόμα Grok render.
+"""
+        )
 
         work = Path(tempfile.gettempdir()) / "sneaker_video_studio"
         work.mkdir(parents=True, exist_ok=True)

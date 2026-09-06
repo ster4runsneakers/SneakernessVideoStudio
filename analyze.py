@@ -465,6 +465,13 @@ slide1_text, slide2_text, slide3_text
             merged["caption_el"] = generate_caption(
                 info, style="soft_discovery", lang="el", ad_texts=merged
             )
+            # Always keep deterministic Pinterest short format (xAI JSON has no pinterest keys)
+            merged["pinterest_caption"] = fallback.get(
+                "pinterest_caption", merged.get("pinterest_caption", "")
+            )
+            merged["pinterest_caption_el"] = fallback.get(
+                "pinterest_caption_el", merged.get("pinterest_caption_el", "")
+            )
             return merged, None
     except Exception as e:
         return fallback, str(e)

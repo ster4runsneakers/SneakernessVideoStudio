@@ -186,11 +186,63 @@ def _overlay_bits(info: ProductInfo, ad_texts: Dict[str, str], which: str) -> st
     )
 
 
+
+def _audio_direction(
+    *,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
+    beat: str = "continuous",
+    ad_texts: Optional[Dict[str, str]] = None,
+) -> str:
+    """Build explicit audio / VO / music cues for Grok video prompts."""
+    ad_texts = ad_texts or {}
+    bits: list[str] = []
+
+    if include_music:
+        mood = (music_mood or "soft cinematic").strip()
+        bits.append(
+            f"Music: original {mood} instrumental bed only "
+            f"(no recognizable licensed songs, no artist names); "
+            f"tasteful, commercial, duck under VO if present."
+        )
+    else:
+        bits.append("Music: none — natural ambience / foley only.")
+
+    if include_voice:
+        lang = "Greek (modern, clear, soft discovery tone)" if voice_lang == "el" else "English (clear, soft discovery tone)"
+        hook = ad_texts.get("hook") or "Tired of foot fatigue after long hours?"
+        cta = ad_texts.get("cta") or "Discover more."
+        body = ad_texts.get("body") or "Engineered support for all-day comfort."
+        if beat == "beat1":
+            line = hook
+        elif beat == "beat2":
+            line = body
+        elif beat == "beat3":
+            line = cta
+        else:
+            line = f"{hook} Then: {body} End soft CTA: {cta}"
+        bits.append(
+            f"Voiceover ON — spoken {lang}, single calm narrator, anonymous; "
+            f"no celebrity voice imitation. Suggested line: \"{line}\" "
+            f"Timing: short phrases synced to the beat; never hard-sell verbs."
+        )
+    else:
+        bits.append("Voiceover OFF — no spoken dialogue, no narrator.")
+
+    return "Audio direction: " + " ".join(bits)
+
+
 def build_beat1_hook(
     info: ProductInfo,
     aspect: str = "9:16",
     preset: Optional[PromptStylePreset] = None,
     ad_texts: Optional[Dict[str, str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> str:
     preset = preset or get_prompt_preset("cinematic_commercial")
     ad_texts = ad_texts or generate_ad_texts(info)
@@ -206,7 +258,7 @@ Scene: Cinematic portrait video of {problem}. High emotion, relatable fatigue, t
 Camera: {preset.camera}. Mood: {preset.mood}.
 Lighting: {preset.lighting}, natural dramatic key with soft fill.
 Motion: subtle breath, fabric movement, camera slowly pushes in on the feet/problem moment.
-Audio direction (optional cue): muted city ambience, soft tension bed — no voiceover required.
+{_audio_direction(include_voice=include_voice, voice_lang=voice_lang, include_music=include_music, music_mood=music_mood, beat="beat1", ad_texts=ad_texts)}
 {_overlay_bits(info, ad_texts, "beat1")}
 
 Style: photorealistic 8k commercial, filmic color grade, shallow DOF.
@@ -220,6 +272,10 @@ def build_beat2_hero(
     aspect: str = "9:16",
     preset: Optional[PromptStylePreset] = None,
     ad_texts: Optional[Dict[str, str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> str:
     preset = preset or get_prompt_preset("cinematic_commercial")
     ad_texts = ad_texts or generate_ad_texts(info)
@@ -236,6 +292,7 @@ EDC lifestyle props nearby: {props}.
 Camera: slow 180° orbit / gentle push-in on the sneaker pair, hero angle three-quarter front. {preset.camera}.
 Lighting: {preset.lighting}. Commercial reflections on mesh and midsole.
 Motion: subtle shoe settle, light dust motes, prop stillness with micro parallax.
+{_audio_direction(include_voice=include_voice, voice_lang=voice_lang, include_music=include_music, music_mood=music_mood, beat="beat2", ad_texts=ad_texts)}
 {_overlay_bits(info, ad_texts, "beat2")}
 
 Style: photorealistic sneaker commercial, crisp materials, accurate silhouette, {preset.mood}.
@@ -249,6 +306,10 @@ def build_beat3_specs_cta(
     aspect: str = "9:16",
     preset: Optional[PromptStylePreset] = None,
     ad_texts: Optional[Dict[str, str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> str:
     preset = preset or get_prompt_preset("macro_tech")
     ad_texts = ad_texts or generate_ad_texts(info)
@@ -265,6 +326,7 @@ Focus on: {specs}.
 Camera: macro glide across midsole → outsole lugs → upper texture, rack focus. {preset.camera}.
 Lighting: {preset.lighting}, tactile speculars.
 Motion: ultra-slow move ending on a clean hold for soft CTA readability.
+{_audio_direction(include_voice=include_voice, voice_lang=voice_lang, include_music=include_music, music_mood=music_mood, beat="beat3", ad_texts=ad_texts)}
 {_overlay_bits(info, ad_texts, "beat3")}
 
 Style: commercial macro product film, photorealistic 8k, {preset.mood}.
@@ -278,6 +340,10 @@ def build_continuous_reel(
     aspect: str = "9:16",
     preset: Optional[PromptStylePreset] = None,
     ad_texts: Optional[Dict[str, str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> str:
     preset = preset or get_prompt_preset("cinematic_commercial")
     ad_texts = ad_texts or generate_ad_texts(info)
@@ -298,6 +364,7 @@ BEAT B (5–10s) HERO: Transition to {product} on {env}, props: {props}. Slow or
 BEAT C (10–15s) MACRO + SOFT CTA: Macro of cushioning/outsole, hold final frame for soft discovery CTA; finish exactly at 0:15.
 
 Camera language: {preset.camera}. Mood: {preset.mood}. Lighting: {preset.lighting}.
+{_audio_direction(include_voice=include_voice, voice_lang=voice_lang, include_music=include_music, music_mood=music_mood, beat="continuous", ad_texts=ad_texts)}
 {_overlay_bits(info, ad_texts, "continuous")}
 
 Image-to-video note (if starting from uploaded sneaker photo): preserve exact sneaker identity, colorway, and silhouette; animate camera and light only; do not morph logos.
@@ -316,6 +383,10 @@ def build_grok_prompt_pack(
     include_beats: bool = True,
     include_continuous: bool = True,
     ad_texts: Optional[Dict[str, str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> Dict[str, str]:
     """
     Return ordered dict of labeled Grok prompts ready to copy-paste.
@@ -329,20 +400,26 @@ def build_grok_prompt_pack(
 
     pack: Dict[str, str] = {}
     ar_label = _aspect_label(aspect)
+    audio_kw = dict(
+        include_voice=include_voice,
+        voice_lang=voice_lang,
+        include_music=include_music,
+        music_mood=music_mood,
+    )
 
     if include_beats:
         pack[f"Grok · 15s Beat 1 Hook 0–5s ({ar_label})"] = build_beat1_hook(
-            info, aspect, hero_preset, ad_texts
+            info, aspect, hero_preset, ad_texts, **audio_kw
         )
         pack[f"Grok · 15s Beat 2 Hero 5–10s ({ar_label})"] = build_beat2_hero(
-            info, aspect, hero_preset, ad_texts
+            info, aspect, hero_preset, ad_texts, **audio_kw
         )
         pack[f"Grok · 15s Beat 3 Macro+CTA 10–15s ({ar_label})"] = build_beat3_specs_cta(
-            info, aspect, macro_preset, ad_texts
+            info, aspect, macro_preset, ad_texts, **audio_kw
         )
     if include_continuous:
         pack[f"Grok · Continuous 15s Reel ({ar_label})"] = build_continuous_reel(
-            info, aspect, hero_preset, ad_texts
+            info, aspect, hero_preset, ad_texts, **audio_kw
         )
     return pack
 
@@ -352,6 +429,10 @@ def dual_aspect_pack(
     preset_id: str = "cinematic_commercial",
     ad_texts: Optional[Dict[str, str]] = None,
     aspects: Optional[List[str]] = None,
+    include_voice: bool = False,
+    voice_lang: str = "en",
+    include_music: bool = True,
+    music_mood: str = "soft cinematic",
 ) -> Dict[str, str]:
     """Generate packs for multiple aspects (default: 9:16 + 1:1)."""
     ad_texts = ad_texts or generate_ad_texts(info)
@@ -359,6 +440,17 @@ def dual_aspect_pack(
     out: Dict[str, str] = {}
     for ar in aspects:
         out.update(
-            build_grok_prompt_pack(info, ar, preset_id, True, True, ad_texts)
+            build_grok_prompt_pack(
+                info,
+                ar,
+                preset_id,
+                True,
+                True,
+                ad_texts,
+                include_voice=include_voice,
+                voice_lang=voice_lang,
+                include_music=include_music,
+                music_mood=music_mood,
+            )
         )
     return out
