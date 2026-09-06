@@ -257,11 +257,14 @@ def main() -> None:
             "Grok (xAI)": "grok",
             "Gemini": "gemini",
         }
+        _prov_default = 0
+        if (not api_ok) and gemini_ok:
+            _prov_default = list(provider_labels.keys()).index("Gemini")
         provider_label = st.selectbox(
             "Vision analyze provider",
             list(provider_labels.keys()),
-            index=0,
-            help="Auto δοκιμάζει xAI/Grok πρώτα αν υπάρχει key, αλλιώς Gemini, αλλιώς defaults.",
+            index=_prov_default,
+            help="Αν έχεις μόνο Gemini key, διάλεξε Gemini (ή άσε Auto).",
         )
         analyze_provider = provider_labels[provider_label]
         st.markdown("---")
@@ -329,15 +332,30 @@ def main() -> None:
                 ("props_desc", "props_desc_val"),
                 ("problem_desc", "problem_desc_val"),
             ]:
-                if data.get(src):
-                    st.session_state[dst] = data[src]
-            if status == "xai":
-                st.success("Ανάλυση μέσω xAI Grok ολοκληρώθηκε.")
-            elif status == "gemini":
-                st.success("Ανάλυση μέσω Google Gemini ολοκληρώθηκε.")
-            elif status.startswith("fallback"):
+                val = (data.get(src) or "").strip()
+                if val:
+                    st.session_state[dst] = val
+            filled = bool(data.get("brand") or data.get("model") or data.get("colorway"))
+            st.session_state["last_analyze_status"] = status
+            st.session_state["last_analyze_filled"] = filled
+            if status in ("xai", "gemini") and filled:
+                st.success(
+                    f"Ανάλυση μέσω {'xAI Grok' if status == 'xai' else 'Google Gemini'} ολοκληρώθηκε."
+                )
+            elif status.startswith("fallback_error:"):
+                st.error(
+                    "Η ανίχνευση απέτυχε: "
+                    + status.replace("fallback_error:", "", 1)[:500]
+                )
+                st.info(
+                    "Sidebar → provider **Gemini**. Στα Secrets βάλε ακριβώς:\n\n"
+                    "GEMINI_API_KEY = "το-κλειδί"\n\n"
+                    "χωρίς [section], Save + Reboot."
+                )
+            else:
                 st.warning(
-                    "Χωρίς vision API / fallback defaults — συμπλήρωσε τα πεδία χειροκίνητα."
+                    f"Δεν συμπληρώθηκαν μάρκα/μοντέλο (status: `{status}`). "
+                    "Διάλεξε Gemini στο sidebar ή συμπλήρωσε χειροκίνητα."
                 )
             st.rerun()
 
@@ -347,33 +365,29 @@ def main() -> None:
     with c1:
         brand = st.text_input(
             "Brand / Μάρκα",
-            value=st.session_state["brand_val"],
+            key="brand_val",
             placeholder="π.χ. HOKA",
         )
-        st.session_state["brand_val"] = brand
     with c2:
         model_name = st.text_input(
             "Model / Μοντέλο",
-            value=st.session_state["model_val"],
+            key="model_val",
             placeholder="π.χ. Clifton 9",
         )
-        st.session_state["model_val"] = model_name
     with c3:
         colorway = st.text_input(
             "Colorway / Χρώμα",
-            value=st.session_state["colorway_val"],
+            key="colorway_val",
             placeholder="π.χ. Cream / Red",
         )
-        st.session_state["colorway_val"] = colorway
 
     custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
     key_materials = st.text_area(
         "Specs / Τεχνικά Χαρακτηριστικά",
-        value=st.session_state["specs_val"],
+        key="specs_val",
         placeholder="π.χ. CMEVA midsole, engineered mesh…",
         height=70,
     )
-    st.session_state["specs_val"] = key_materials
 
     col_tag, col_badge = st.columns(2)
     with col_tag:
@@ -384,22 +398,19 @@ def main() -> None:
     st.markdown("#### 🎨 Δυναμικά Στοιχεία Σκηνής")
     selected_env = st.text_area(
         "Περιβάλλον Φόντου (Custom Environment)",
-        value=st.session_state["env_desc_val"],
+        key="env_desc_val",
         height=60,
     )
-    st.session_state["env_desc_val"] = selected_env
     selected_props = st.text_area(
         "Αξεσουάρ / EDC Props",
-        value=st.session_state["props_desc_val"],
+        key="props_desc_val",
         height=60,
     )
-    st.session_state["props_desc_val"] = selected_props
     selected_problem = st.text_area(
         "Σενάριο Προβλήματος (Custom Problem Scene)",
-        value=st.session_state["problem_desc_val"],
+        key="problem_desc_val",
         height=60,
     )
-    st.session_state["problem_desc_val"] = selected_problem
 
     hashtags = st.text_input(
         "Hashtags (προαιρετικό)",

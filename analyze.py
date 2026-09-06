@@ -57,27 +57,55 @@ Return ONLY a valid raw JSON object:
 }"""
 
 
+def _clean_secret(val: str) -> str:
+    v = (val or "").strip()
+    if len(v) >= 2 and ((v[0] == v[-1] == '"') or (v[0] == v[-1] == "'")):
+        v = v[1:-1].strip()
+    return v
+
+
 def _secret_lookup(name: str) -> Optional[str]:
-    """Resolve a single key from env, then Streamlit secrets."""
-    val = os.getenv(name, "").strip()
+    """Resolve a single key from env, then Streamlit secrets (flat or nested)."""
+    val = _clean_secret(os.getenv(name, ""))
     if val:
         return val
     try:
         import streamlit as st
 
         secrets = getattr(st, "secrets", None)
-        if secrets is not None:
+        if secrets is None:
+            return None
+        # Flat: GEMINI_API_KEY = "..."
+        try:
+            val = _clean_secret(str(secrets[name]))
+            if val and val != "None":
+                return val
+        except Exception:
+            pass
+        try:
+            val = _clean_secret(str(secrets.get(name, "") or ""))
+            if val:
+                return val
+        except Exception:
+            pass
+        # Nested common mistakes: [gemini] api_key / GEMINI_API_KEY
+        for section in ("gemini", "google", "genai", "api"):
             try:
-                val = str(secrets.get(name, "") or "").strip()
-                if val:
-                    return val
+                sect = secrets[section]
             except Exception:
+                continue
+            for alt in (name, "api_key", "API_KEY", "key"):
                 try:
-                    val = str(secrets[name]).strip()
-                    if val:
+                    val = _clean_secret(str(sect[alt]))
+                    if val and val != "None":
                         return val
                 except Exception:
-                    pass
+                    try:
+                        val = _clean_secret(str(sect.get(alt, "") or ""))
+                        if val:
+                            return val
+                    except Exception:
+                        pass
     except Exception:
         pass
     return None
@@ -217,7 +245,7 @@ def analyze_shoe_with_gemini(
     mime_type: str = "image/jpeg",
     brand_hint: str = "",
     model_hint: str = "",
-    model: str = "gemini-2.0-flash",
+    model: str = "gemini-2.5-flash",
 ) -> Tuple[Dict[str, str], Optional[str]]:
     """
     Call Google Gemini via google-genai SDK (sneakerness-engine style).
@@ -243,9 +271,10 @@ def analyze_shoe_with_gemini(
 
     models_to_try = [
         model,
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
+        "gemini-flash-latest",
         "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
     ]
     last_err: Optional[str] = None
 
@@ -261,8 +290,8 @@ def analyze_shoe_with_gemini(
             resp = client.models.generate_content(
                 model=m,
                 contents=[
-                    ANALYZE_SYSTEM + "\n\n" + user_text,
                     image_part,
+                    ANALYZE_SYSTEM + "\n\n" + user_text,
                 ],
                 config=types.GenerateContentConfig(
                     temperature=0.2,
@@ -286,7 +315,7 @@ def analyze_shoe_with_gemini(
             try:
                 resp = client.models.generate_content(
                     model=m,
-                    contents=[ANALYZE_SYSTEM + "\n\n" + user_text, image_part],
+                    contents=[image_part, ANALYZE_SYSTEM + "\n\n" + user_text],
                     config=types.GenerateContentConfig(
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(
                             disable=True
