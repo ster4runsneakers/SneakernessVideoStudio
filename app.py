@@ -441,7 +441,7 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
-              <div class="ui-version-badge">UI v4.1 · Electric Midnight · Grok-4.6</div>
+              <div class="ui-version-badge">UI v4.1 · Electric Midnight · 15s prompts</div>
               <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>
@@ -737,7 +737,7 @@ def main() -> None:
         st.markdown('<div class="step-badge">ΚΥΡΙΟ</div>', unsafe_allow_html=True)
         st.subheader("Grok Video Prompt Pack")
         st.caption(
-            "Copy-paste prompts βελτιστοποιημένα για Grok video / Aurora / image-to-video. "
+            "Copy-paste prompts για Grok video **15 δευτερολέπτων** / Aurora / image-to-video. "
             "Αγγλικά · cinematic sneaker commercial · soft discovery · celebrity safety."
         )
 

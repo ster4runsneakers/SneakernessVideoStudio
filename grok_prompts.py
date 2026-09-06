@@ -22,9 +22,11 @@ NEGATIVE_CONSTRAINTS = (
 )
 
 GROK_PREAMBLE = (
-    "You are generating a short cinematic sneaker commercial video for Grok (xAI). "
+    "You are generating a cinematic sneaker commercial video for Grok (xAI). "
+    "TARGET TOTAL DURATION: exactly 15 seconds (15s). "
     "Photorealistic motion, premium commercial grade, natural physics, smooth camera. "
-    "Frame composition must match the requested aspect ratio exactly."
+    "Frame composition must match the requested aspect ratio exactly. "
+    "Pacing must fit a finished 15-second social ad — no longer, no shorter."
 )
 
 
@@ -123,10 +125,27 @@ def _aspect_line(aspect: str) -> str:
     return f"Aspect ratio {a}, compose the frame to fill the canvas cleanly."
 
 
-def _duration_hint(beat: bool = True) -> str:
+def _duration_hint(beat: bool = True, beat_index: int = 0) -> str:
+    """All prompts are designed for a finished **15-second** video.
+    Beats are ~5s each (3×5s = 15s). Continuous reel is exactly 15s.
+    """
     if beat:
-        return "Clip length ~3–5 seconds, loop-friendly ending."
-    return "Total length ~12–18 seconds, three clear beats in one continuous take or seamless cuts."
+        windows = {
+            1: "0:00–0:05 (first 5 seconds of the 15s ad)",
+            2: "0:05–0:10 (middle 5 seconds of the 15s ad)",
+            3: "0:10–0:15 (final 5 seconds of the 15s ad)",
+        }
+        window = windows.get(beat_index, "exactly 5 seconds within the 15s ad")
+        return (
+            f"DURATION: exactly 5 seconds for this beat ({window}). "
+            f"Part of a complete 15-second video (3 beats × 5s). "
+            f"Tight pacing, one clear action, end on a clean hold for the cut."
+        )
+    return (
+        "DURATION: exactly 15 seconds total (15s finished video). "
+        "Three beats inside one timeline: 0–5s hook, 5–10s hero, 10–15s macro+CTA. "
+        "Do not exceed 15 seconds; do not end before 15 seconds."
+    )
 
 
 def _product_core(info: ProductInfo) -> str:
@@ -180,8 +199,8 @@ def build_beat1_hook(
     )
     prompt = f"""{GROK_PREAMBLE}
 
-GROK VIDEO — BEAT 1: HOOK / PROBLEM SCENE
-{_aspect_line(aspect)} {_duration_hint(True)}
+GROK VIDEO — BEAT 1: HOOK / PROBLEM SCENE (15s ad · seconds 0–5)
+{_aspect_line(aspect)} {_duration_hint(True, 1)}
 
 Scene: Cinematic portrait video of {problem}. High emotion, relatable fatigue, tasteful and respectful — anonymous person, face partially obscured or turned away (no recognizable celebrity).
 Camera: {preset.camera}. Mood: {preset.mood}.
@@ -209,8 +228,8 @@ def build_beat2_hero(
     props = info.props_desc.strip()
     prompt = f"""{GROK_PREAMBLE}
 
-GROK VIDEO — BEAT 2: HERO PRODUCT SHOWCASE
-{_aspect_line(aspect)} {_duration_hint(True)}
+GROK VIDEO — BEAT 2: HERO PRODUCT SHOWCASE (15s ad · seconds 5–10)
+{_aspect_line(aspect)} {_duration_hint(True, 2)}
 
 Scene: Studio-to-location product hero of {product} placed on a surface in {env}.
 EDC lifestyle props nearby: {props}.
@@ -238,8 +257,8 @@ def build_beat3_specs_cta(
     specs = info.specs.strip() or "cushioning geometry, outsole traction, upper knit/mesh detail"
     prompt = f"""{GROK_PREAMBLE}
 
-GROK VIDEO — BEAT 3: SPECS / MACRO + SOFT CTA
-{_aspect_line(aspect)} {_duration_hint(True)}
+GROK VIDEO — BEAT 3: SPECS / MACRO + SOFT CTA (15s ad · seconds 10–15)
+{_aspect_line(aspect)} {_duration_hint(True, 3)}
 
 Scene: Sleek macro detail close-up video of the sole, cushioning, and material texture of {product}, background suggesting {env}.
 Focus on: {specs}.
@@ -268,14 +287,15 @@ def build_continuous_reel(
     props = info.props_desc.strip()
     prompt = f"""{GROK_PREAMBLE}
 
-GROK VIDEO — CONTINUOUS SINGLE-SHOT / SEAMLESS REEL
+GROK VIDEO — CONTINUOUS 15-SECOND REEL (exact length: 15 seconds)
 {_aspect_line(aspect)} {_duration_hint(False)}
 
-One cohesive sneaker commercial with three internal beats (hard cuts OK if seamless color-matched):
+One cohesive 15-second sneaker commercial with three internal beats
+(hard cuts OK if seamless color-matched). TOTAL RUNTIME = 15 SECONDS:
 
-BEAT A (0–4s) HOOK: Open on {problem}. Anonymous subject, no celebrity likeness. Emotional fatigue → hope.
-BEAT B (4–11s) HERO: Transition to {product} on {env}, props: {props}. Slow orbit / push-in hero showcase.
-BEAT C (11–16s) MACRO + SOFT CTA: Macro of cushioning/outsole, end on watermark soft discovery CTA.
+BEAT A (0–5s) HOOK: Open on {problem}. Anonymous subject, no celebrity likeness. Emotional fatigue → hope. End ready for cut at 0:05.
+BEAT B (5–10s) HERO: Transition to {product} on {env}, props: {props}. Slow orbit / push-in hero showcase. End at 0:10.
+BEAT C (10–15s) MACRO + SOFT CTA: Macro of cushioning/outsole, hold final frame for soft discovery CTA; finish exactly at 0:15.
 
 Camera language: {preset.camera}. Mood: {preset.mood}. Lighting: {preset.lighting}.
 {_overlay_bits(info, ad_texts, "continuous")}
@@ -311,17 +331,17 @@ def build_grok_prompt_pack(
     ar_label = _aspect_label(aspect)
 
     if include_beats:
-        pack[f"Grok · Beat 1 Hook/Problem ({ar_label})"] = build_beat1_hook(
+        pack[f"Grok · 15s Beat 1 Hook 0–5s ({ar_label})"] = build_beat1_hook(
             info, aspect, hero_preset, ad_texts
         )
-        pack[f"Grok · Beat 2 Hero Showcase ({ar_label})"] = build_beat2_hero(
+        pack[f"Grok · 15s Beat 2 Hero 5–10s ({ar_label})"] = build_beat2_hero(
             info, aspect, hero_preset, ad_texts
         )
-        pack[f"Grok · Beat 3 Specs/Macro + Soft CTA ({ar_label})"] = build_beat3_specs_cta(
+        pack[f"Grok · 15s Beat 3 Macro+CTA 10–15s ({ar_label})"] = build_beat3_specs_cta(
             info, aspect, macro_preset, ad_texts
         )
     if include_continuous:
-        pack[f"Grok · Continuous Single-Shot Reel ({ar_label})"] = build_continuous_reel(
+        pack[f"Grok · Continuous 15s Reel ({ar_label})"] = build_continuous_reel(
             info, aspect, hero_preset, ad_texts
         )
     return pack
