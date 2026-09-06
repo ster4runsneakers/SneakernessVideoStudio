@@ -441,7 +441,7 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
-              <div class="ui-version-badge">UI v4 · Electric Midnight</div>
+              <div class="ui-version-badge">UI v4.1 · Electric Midnight + Gemini fix</div>
               <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>

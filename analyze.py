@@ -330,13 +330,14 @@ def analyze_shoe_with_gemini(
         user_text += f"\n\nHints (may be empty): brand={brand_hint!r}, model={model_hint!r}"
 
     # Same spirit as sneakerness-engine model cascade
+    # Current Google AI models only (1.5-*-latest often 404 on v1beta now)
     models_to_try = [
         model,
         "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
         "gemini-flash-latest",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
     ]
     # de-dupe preserve order
     seen = set()
@@ -373,8 +374,10 @@ def analyze_shoe_with_gemini(
                 out = _sanitize_analysis(parsed)
                 if out.get("brand") or out.get("model") or out.get("colorway"):
                     return out, None
-                last_err = f"{m}:json_ok_but_empty_brand_model"
-                # still return parsed scene fields even if brand empty? keep trying
+                # Accept partial scene fill rather than failing entirely
+                if any(out.get(k) for k in ("specs", "env_desc", "props_desc")):
+                    return out, None
+                last_err = f"{m}:json_ok_but_empty_fields"
                 continue
             last_err = f"{m}:invalid_json:{text[:180]}"
         except Exception as e:
