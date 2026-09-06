@@ -348,9 +348,8 @@ def main() -> None:
                     + status.replace("fallback_error:", "", 1)[:500]
                 )
                 st.info(
-                    "Sidebar → provider **Gemini**. Στα Secrets βάλε ακριβώς:\n\n"
-                    "GEMINI_API_KEY = "το-κλειδί"\n\n"
-                    "χωρίς [section], Save + Reboot."
+                    "Sidebar: provider Gemini. Secrets: GEMINI_API_KEY = your-key "
+                    "(χωρίς [section]), μετά Save + Reboot."
                 )
             else:
                 st.warning(
