@@ -184,7 +184,7 @@ def analyze_shoe_with_xai(
     mime_type: str = "image/jpeg",
     brand_hint: str = "",
     model_hint: str = "",
-    model: str = "grok-2-vision-1212",
+    model: str = "grok-4.6",
 ) -> Tuple[Dict[str, str], Optional[str]]:
     """
     Call xAI OpenAI-compatible chat completions with vision.
@@ -211,7 +211,7 @@ def analyze_shoe_with_xai(
 
     client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
 
-    models_to_try = [model, "grok-2-vision-1212", "grok-vision-beta", "grok-2-latest"]
+    models_to_try = [model, "grok-4.6", "grok-4.5", "grok-4.3"]
     last_err: Optional[str] = None
 
     for m in models_to_try:
@@ -393,7 +393,7 @@ def generate_copy_with_xai(
     colorway: str,
     specs: str,
     watermark: str,
-    model: str = "grok-2-latest",
+    model: str = "grok-4.6",
 ) -> Tuple[Dict[str, str], Optional[str]]:
     """Optional EN soft-discovery copy via Grok text. Falls back silently."""
     from captions import ProductInfo, generate_ad_texts, generate_caption, safe_model_name
