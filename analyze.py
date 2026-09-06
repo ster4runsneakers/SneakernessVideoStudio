@@ -10,6 +10,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
+import re
 from typing import Any, Dict, Literal, Optional, Tuple
 
 from captions import sanitize_celebrity_names
@@ -240,6 +242,63 @@ def analyze_shoe_with_xai(
     return analyze_shoe_fallback(brand_hint, model_hint), last_err
 
 
+def _jpeg_bytes_if_needed(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+    """Gemini is happiest with jpeg/png; convert webp/other via Pillow when possible."""
+    mime = (mime_type or "image/jpeg").lower()
+    if mime in ("image/jpeg", "image/jpg", "image/png"):
+        return image_bytes, "image/jpeg" if "jpeg" in mime or "jpg" in mime else "image/png"
+    try:
+        from io import BytesIO
+        from PIL import Image
+
+        img = Image.open(BytesIO(image_bytes)).convert("RGB")
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return image_bytes, "image/jpeg"
+
+
+def _extract_response_text(resp) -> str:
+    text = (getattr(resp, "text", None) or "").strip()
+    if text:
+        return text
+    # Fallback when .text is empty but candidates exist
+    try:
+        cands = getattr(resp, "candidates", None) or []
+        parts_out = []
+        for c in cands:
+            content = getattr(c, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for p in parts:
+                pt = getattr(p, "text", None)
+                if pt:
+                    parts_out.append(pt)
+        return "\n".join(parts_out).strip()
+    except Exception:
+        return ""
+
+
+def _parse_analysis_json(text: str) -> dict | None:
+    clean = _strip_json_fence(text)
+    try:
+        parsed = json.loads(clean)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    # Recover JSON object from surrounding prose
+    m = re.search(r"\{[\s\S]*\}", clean)
+    if m:
+        try:
+            parsed = json.loads(m.group(0))
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return None
+    return None
+
+
 def analyze_shoe_with_gemini(
     image_bytes: bytes,
     mime_type: str = "image/jpeg",
@@ -248,9 +307,8 @@ def analyze_shoe_with_gemini(
     model: str = "gemini-2.5-flash",
 ) -> Tuple[Dict[str, str], Optional[str]]:
     """
-    Call Google Gemini via google-genai SDK (sneakerness-engine style).
+    Call Google Gemini via google-genai SDK — aligned with sneakerness-engine app.py.
     Returns (analysis_dict, error_message_or_None).
-    Safe to import/call without a key — returns fallback + 'no_api_key'.
     """
     api_key = get_gemini_api_key()
     if not api_key:
@@ -265,70 +323,62 @@ def analyze_shoe_with_gemini(
             "google-genai package not installed",
         )
 
+    image_bytes, mime_type = _jpeg_bytes_if_needed(image_bytes, mime_type)
+
     user_text = ANALYZE_PROMPT
     if brand_hint or model_hint:
         user_text += f"\n\nHints (may be empty): brand={brand_hint!r}, model={model_hint!r}"
 
+    # Same spirit as sneakerness-engine model cascade
     models_to_try = [
         model,
         "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-flash-latest",
         "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
     ]
-    last_err: Optional[str] = None
+    # de-dupe preserve order
+    seen = set()
+    models_to_try = [m for m in models_to_try if not (m in seen or seen.add(m))]
 
+    last_err: Optional[str] = None
     try:
         client = genai.Client(api_key=api_key)
     except Exception as e:
-        return analyze_shoe_fallback(brand_hint, model_hint), str(e)
+        return analyze_shoe_fallback(brand_hint, model_hint), f"client_init:{e}"
 
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+    # Sneakerness order: image first, then prompt text
+    contents = [image_part, user_text]
 
     for m in models_to_try:
         try:
-            resp = client.models.generate_content(
-                model=m,
-                contents=[
-                    image_part,
-                    ANALYZE_SYSTEM + "\n\n" + user_text,
-                ],
-                config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json",
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                        disable=True
-                    ),
-                ),
-            )
-            text = (getattr(resp, "text", None) or "").strip()
+            resp = client.models.generate_content(model=m, contents=contents)
+            text = _extract_response_text(resp)
             if not text:
-                last_err = "empty_response"
+                # blocked / empty
+                reason = "empty_response"
+                try:
+                    c0 = (resp.candidates or [None])[0]
+                    fr = getattr(c0, "finish_reason", None)
+                    if fr is not None:
+                        reason = f"empty_response finish_reason={fr}"
+                except Exception:
+                    pass
+                last_err = f"{m}:{reason}"
                 continue
-            parsed = json.loads(_strip_json_fence(text))
-            if isinstance(parsed, dict):
-                return _sanitize_analysis(parsed), None
-            last_err = "invalid JSON shape"
+            parsed = _parse_analysis_json(text)
+            if parsed:
+                out = _sanitize_analysis(parsed)
+                if out.get("brand") or out.get("model") or out.get("colorway"):
+                    return out, None
+                last_err = f"{m}:json_ok_but_empty_brand_model"
+                # still return parsed scene fields even if brand empty? keep trying
+                continue
+            last_err = f"{m}:invalid_json:{text[:180]}"
         except Exception as e:
-            last_err = str(e)
-            # Retry without response_mime_type for older models
-            try:
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=[image_part, ANALYZE_SYSTEM + "\n\n" + user_text],
-                    config=types.GenerateContentConfig(
-                        automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                            disable=True
-                        ),
-                    ),
-                )
-                text = (getattr(resp, "text", None) or "").strip()
-                if text:
-                    parsed = json.loads(_strip_json_fence(text))
-                    if isinstance(parsed, dict):
-                        return _sanitize_analysis(parsed), None
-            except Exception as e2:
-                last_err = str(e2)
+            last_err = f"{m}:{e}"
             continue
 
     return analyze_shoe_fallback(brand_hint, model_hint), last_err

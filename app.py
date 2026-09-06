@@ -489,7 +489,9 @@ def main() -> None:
         else:
             st.caption("Χωρίς XAI/GROK key")
         if gemini_ok:
-            st.success("Gemini key βρέθηκε (GEMINI_API_KEY)")
+            from analyze import get_gemini_api_key as _gkey
+            _gk = _gkey() or ""
+            st.success(f"Gemini key βρέθηκε (μήκος {len(_gk)} χαρακτήρες)")
         else:
             st.caption("Χωρίς GEMINI_API_KEY")
         if not api_ok and not gemini_ok:
@@ -563,12 +565,17 @@ def main() -> None:
         use_demo = st.checkbox("Demo placeholders", value=False)
 
     if do_analyze:
+        if not uploaded_file and not use_demo:
+            st.session_state["last_analyze_status"] = "fallback"
+            st.session_state["last_analyze_filled"] = False
+            st.session_state["last_analyze_message"] = "Ανέβασε πρώτα φωτογραφία παπουτσιού."
+            st.rerun()
         img_bytes = None
         fname = "shoe.jpg"
         if uploaded_file:
             img_bytes = uploaded_file[0].getvalue()
             fname = uploaded_file[0].name
-        with st.spinner("Ανάλυση…"):
+        with st.spinner("Ανάλυση με Gemini/Grok…"):
             data, status = analyze_shoe(
                 image_bytes=img_bytes,
                 filename=fname,
@@ -592,24 +599,36 @@ def main() -> None:
             st.session_state["last_analyze_status"] = status
             st.session_state["last_analyze_filled"] = filled
             if status in ("xai", "gemini") and filled:
-                st.success(
-                    f"Ανάλυση μέσω {'xAI Grok' if status == 'xai' else 'Google Gemini'} ολοκληρώθηκε."
+                st.session_state["last_analyze_message"] = (
+                    f"OK μέσω {'Gemini' if status == 'gemini' else 'Grok'}: "
+                    f"{data.get('brand','')} {data.get('model','')} / {data.get('colorway','')}"
                 )
             elif status.startswith("fallback_error:"):
-                st.error(
-                    "Η ανίχνευση απέτυχε: "
-                    + status.replace("fallback_error:", "", 1)[:500]
+                st.session_state["last_analyze_message"] = (
+                    "Σφάλμα API: " + status.replace("fallback_error:", "", 1)[:700]
                 )
-                st.info(
-                    "Sidebar: provider Gemini. Secrets: GEMINI_API_KEY = your-key "
-                    "(χωρίς [section]), μετά Save + Reboot."
+            elif status == "fallback_no_key":
+                st.session_state["last_analyze_message"] = (
+                    "Δεν βρέθηκε API key. Secrets: GEMINI_API_KEY = \"...\" μετά Reboot. "
+                    f"Sidebar δείχνει Gemini key: {'ΝΑΙ' if has_gemini_key() else 'ΟΧΙ'}."
                 )
             else:
-                st.warning(
-                    f"Δεν συμπληρώθηκαν μάρκα/μοντέλο (status: `{status}`). "
-                    "Διάλεξε Gemini στο sidebar ή συμπλήρωσε χειροκίνητα."
+                st.session_state["last_analyze_message"] = (
+                    f"Χωρίς αποτέλεσμα (status={status}). Διάλεξε provider Gemini και ξαναπάτα Ανίχνευση."
                 )
             st.rerun()
+
+    # Persistent analyze feedback (survives rerun)
+    _st = st.session_state.get("last_analyze_status")
+    _filled = st.session_state.get("last_analyze_filled")
+    _msg = st.session_state.get("last_analyze_message", "")
+    if _st:
+        if _st in ("gemini", "xai") and _filled:
+            st.success(_msg or f"Τελευταία ανίχνευση OK ({_st}).")
+        elif str(_st).startswith("fallback_error"):
+            st.error(_msg or f"Ανίχνευση απέτυχε: {_st}")
+        elif _st:
+            st.warning(_msg or f"Ανίχνευση χωρίς αποτέλεσμα (status: `{_st}`). Sidebar → Gemini + έλεγχος Secrets.")
 
     # ---- Fields ----
     st.markdown(
