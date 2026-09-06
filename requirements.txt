@@ -1,0 +1,12 @@
+streamlit>=1.28.0,<2
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+moviepy>=1.0.3,<3
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
+numpy>=1.24.0,<3
+decorator>=4.0.2
+proglog>=0.1.10
+tqdm>=4.0.0
+openai>=1.40.0
+google-genai>=1.0.0

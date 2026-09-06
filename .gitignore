@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+.env
+.python-version
+
+# Streamlit / local
+.streamlit/secrets.toml
+*.mp4
+*.mov
+*.avi
+outputs/
+output/
+uploads/
+demo/
+.tmp/
+.cache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Large samples
+samples/
+media/
+*.zip
