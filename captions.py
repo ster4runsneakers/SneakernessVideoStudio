@@ -123,6 +123,118 @@ def default_hashtags(info: ProductInfo, lang: str = "en") -> str:
     return f"#Sneakerness #{brand} #DailyComfort #FootwearTech #SoftDiscovery #sneakers"
 
 
+
+def _pinterest_tags(info: ProductInfo, brand: str, model: str) -> str:
+    """Keyword-forward tags Pinterest actually indexes."""
+    bits = ["#Sneakerness"]
+    if brand:
+        bits.append("#" + "".join(c for c in brand if c.isalnum()))
+
+    # Prefer compound phrases over single split words
+    ml = model.lower()
+    compounds = [
+        ("hands free", "HandsFree"),
+        ("slip-ins", "SlipIns"),
+        ("slip ins", "SlipIns"),
+        ("arch fit", "ArchFit"),
+        ("max cushioning", "MaxCushioning"),
+        ("air max", "AirMax"),
+        ("gel-kayano", "GelKayano"),
+        ("ultra boost", "Ultraboost"),
+    ]
+    for needle, tag in compounds:
+        if needle in ml:
+            bits.append("#" + tag)
+
+    # leftover meaningful tokens (len>=4), skip filler / already covered
+    skip = {
+        "the", "and", "with", "for", "in", "of", "a", "an", "ins", "free",
+        "hands", "slip", "arch", "fit",
+    }
+    for tok in model.replace("-", " ").split():
+        clean = "".join(c for c in tok if c.isalnum())
+        if len(clean) >= 4 and clean.lower() not in skip:
+            bits.append("#" + clean)
+
+    bits += ["#DailyComfort", "#FootwearTech", "#sneakers", "#ArchSupport"]
+    seen = set()
+    out = []
+    for b in bits:
+        k = b.lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(b)
+    return " ".join(out[:10])
+
+
+def _pinterest_caption_en(
+    brand: str, model: str, colorway: str, specs: str, wm: str, info: ProductInfo
+) -> str:
+    """Short, scannable Pinterest description (not FB essay)."""
+    line2_bits = [f"{brand} {model}".strip()]
+    if colorway and colorway.lower() not in ("signature colorway",):
+        line2_bits.append(colorway)
+    line2 = " · ".join(line2_bits)
+
+    # keyword line from specs — keep short
+    tech = specs
+    if len(tech) > 90:
+        tech = tech[:87].rsplit(" ", 1)[0] + "…"
+    if not tech or tech == "engineered cushioning and support":
+        tech = "posture support · all-day comfort · engineered cushioning"
+    else:
+        # turn commas into mid-dots for scanability
+        tech = " · ".join(p.strip() for p in tech.replace(";", ",").split(",") if p.strip())[:120]
+
+    tags = _pinterest_tags(info, brand, model)
+    return "\n".join(
+        [
+            "Tired of foot fatigue after long hours?",
+            "",
+            f"Discover {line2}",
+            "",
+            tech,
+            "",
+            f"Learn more → {wm}",
+            "",
+            tags,
+        ]
+    )
+
+
+def _pinterest_caption_el(
+    brand: str, model: str, colorway: str, specs: str, wm: str, info: ProductInfo
+) -> str:
+    """Greek short Pinterest-style description."""
+    line2_bits = [f"{brand} {model}".strip()]
+    if colorway and colorway.lower() not in ("signature colorway",):
+        line2_bits.append(colorway)
+    line2 = " · ".join(line2_bits)
+
+    tech = specs
+    if len(tech) > 90:
+        tech = tech[:87].rsplit(" ", 1)[0] + "…"
+    if not tech or tech == "engineered cushioning and support":
+        tech = "στήριξη στάσης · άνεση όλη μέρα · τεχνολογία cushioning"
+    else:
+        tech = " · ".join(p.strip() for p in tech.replace(";", ",").split(",") if p.strip())[:120]
+
+    tags = _pinterest_tags(info, brand, model)
+    return "\n".join(
+        [
+            "Κουράστηκες από την κούραση στα πόδια μετά από πολλές ώρες;",
+            "",
+            f"Ανακάλυψε {line2}",
+            "",
+            tech,
+            "",
+            f"Μάθε περισσότερα → {wm}",
+            "",
+            tags,
+        ]
+    )
+
+
 def generate_ad_texts(info: ProductInfo) -> Dict[str, str]:
     """Deterministic soft-discovery ad copy pack (EN creative outputs)."""
     brand = info.brand.strip() or "the brand"
@@ -148,6 +260,14 @@ def generate_ad_texts(info: ProductInfo) -> Dict[str, str]:
         "tiktok_caption": soft_sanitize(
             f"How do you deal with foot fatigue? Check out the tech behind "
             f"{brand} {model} at {wm}! 👟 #Sneakerness #{brand.replace(' ', '')} #FootwearTech #DailyComfort #FYP",
+            wm,
+        ),
+        "pinterest_caption": soft_sanitize(
+            _pinterest_caption_en(brand, model, colorway, specs, wm, info),
+            wm,
+        ),
+        "pinterest_caption_el": soft_sanitize(
+            _pinterest_caption_el(brand, model, colorway, specs, wm, info),
             wm,
         ),
         "hashtags_meta": default_hashtags(info, "en"),
@@ -313,6 +433,8 @@ def build_content_pack_text(
     """Assemble downloadable .txt content pack."""
     meta = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
     tiktok = ad_texts.get("tiktok_caption", "")
+    pin = ad_texts.get("pinterest_caption", "")
+    pin_el = ad_texts.get("pinterest_caption_el", "")
     el_cap = ad_texts.get("caption_el", "")
     parts = [
         "========================================",
@@ -331,6 +453,16 @@ def build_content_pack_text(
         "TIKTOK / REEL POST (EN)",
         "========================================",
         tiktok,
+        "",
+        "========================================",
+        "PINTEREST DESCRIPTION (EN — short / keyword)",
+        "========================================",
+        pin,
+        "",
+        "========================================",
+        "PINTEREST DESCRIPTION (EL — short / keyword)",
+        "========================================",
+        pin_el,
         "",
         "========================================",
         "CAPTION (EL — Soft Discovery)",

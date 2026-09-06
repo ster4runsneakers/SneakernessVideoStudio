@@ -441,7 +441,7 @@ def main() -> None:
         st.markdown(
             """
             <div class="hero">
-              <div class="ui-version-badge">UI v4.1 · Electric Midnight · 15s prompts</div>
+              <div class="ui-version-badge">UI v4.2 · Electric Midnight · Pinterest captions</div>
               <div class="hero-kicker">Sneakerness · Marketing Studio</div>
               <h1>👟 Sneakerness Grok Video Studio</h1>
               <p>
@@ -828,30 +828,49 @@ def main() -> None:
 
         if ad_texts or content:
             st.markdown("### 📲 Soft Discovery Captions")
-            t1, t2, t3 = st.tabs(
-                ["📘 FB / IG (EN)", "🎵 TikTok (EN)", "🇬🇷 Ελληνικά"]
+            ad_texts = ad_texts or {}
+            t1, t2, t3, t4 = st.tabs(
+                ["📘 FB / IG (EN)", "🎵 TikTok (EN)", "📌 Pinterest", "🇬🇷 Ελληνικά"]
             )
             with t1:
-                if ad_texts:
-                    meta = (
-                        f"{ad_texts.get('meta_caption', '')}\n\n"
-                        f"{ad_texts.get('hashtags_meta', '')}"
-                    )
-                    st.text_area("FB / IG", value=meta if include_en_caption else "", height=160)
+                meta = (
+                    f"{ad_texts.get('meta_caption', '')}\n\n"
+                    f"{ad_texts.get('hashtags_meta', '')}"
+                )
+                st.text_area(
+                    "FB / IG",
+                    value=meta if include_en_caption else "",
+                    height=160,
+                )
             with t2:
-                if ad_texts and include_en_caption:
-                    st.text_area(
-                        "TikTok",
-                        value=ad_texts.get("tiktok_caption", ""),
-                        height=120,
-                    )
+                st.text_area(
+                    "TikTok",
+                    value=ad_texts.get("tiktok_caption", "") if include_en_caption else "",
+                    height=120,
+                )
             with t3:
-                if ad_texts and include_el_caption:
+                st.caption("Short · scannable · keyword-forward (Pinterest SEO)")
+                pin_en, pin_el = st.tabs(["EN", "EL"])
+                with pin_en:
                     st.text_area(
-                        "EL",
-                        value=ad_texts.get("caption_el", ""),
-                        height=160,
+                        "Pinterest EN",
+                        value=ad_texts.get("pinterest_caption", ""),
+                        height=200,
+                        key="pin_en_area",
                     )
+                with pin_el:
+                    st.text_area(
+                        "Pinterest EL",
+                        value=ad_texts.get("pinterest_caption_el", ""),
+                        height=200,
+                        key="pin_el_area",
+                    )
+            with t4:
+                st.text_area(
+                    "Ελληνικά (FB/IG style)",
+                    value=ad_texts.get("caption_el", ""),
+                    height=180,
+                )
 
             if content:
                 safe_name = f"{brand}_{safe_model_name(model_name)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
