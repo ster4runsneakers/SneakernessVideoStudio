@@ -1,17 +1,13 @@
 """
-Sneakerness × Grok Video Studio
-Greek UI · English creative outputs · Grok (xAI) video prompt pack primary deliverable.
-Optional local slideshow MP4 secondary export.
-Compatible entry for Streamlit Cloud / sneakerness-engine style (app.py).
+Sneakerness Video Studio v5
+Greek UI · English creative prompts · ONE Grok clip per beat → stitch → captions.
 """
 
 from __future__ import annotations
 
 import io
-import json
 import os
 import tempfile
-import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -22,1102 +18,513 @@ load_dotenv()
 import streamlit as st
 from PIL import Image
 
-from analyze import (
-    analyze_shoe,
-    generate_copy_with_xai,
-    has_gemini_key,
-    has_xai_key,
+from analyze import analyze_shoe, has_gemini_key, has_xai_key
+from beats import (
+    build_prompt_pack_bundle,
+    list_prompt_presets,
+    pack_json_bytes,
+    pack_txt_bytes,
+    pack_zip_bytes,
+    slug_product,
 )
 from captions import (
     AUTHENTICITY_TAGS,
-    CAPTION_STYLES,
     CATEGORY_BADGES,
     ProductInfo,
-    build_content_pack_text,
     generate_ad_texts,
     generate_caption,
     safe_model_name,
-    video_hook_text,
-    video_subtitle_text,
 )
-from grok_prompts import build_grok_prompt_pack, build_pack_meta_json, list_prompt_presets
-from templates import (
-    ASPECT_OPTIONS_EL,
-    get_template,
-    list_templates,
-    prompt_preset_options_el,
-    template_options_el,
-)
-from video_builder import build_slideshow, make_placeholder_images
+from stitch import save_upload_bytes, stitch_clips, timeline_labels
+
+# ---------------------------------------------------------------------------
+# Page / theme
+# ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Sneakerness Grok Video Studio",
+    page_title="Sneakerness Video Studio v5",
     page_icon="👟",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.markdown(
-    """
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+ASPECT_OPTIONS = [
+    "9:16 · Stories / Reels / TikTok",
+    "16:9 · YouTube",
+    "1:1 · Feed square",
+    "2:3 · Pinterest",
+]
 
+CAPTION_LANG_OPTIONS = {"el": "Ελληνικά (UI captions)", "en": "English"}
+
+
+def _inject_css() -> None:
+    st.markdown(
+        """
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
   :root {
     --em-emerald: #10b981;
-    --em-emerald-deep: #059669;
     --em-gold: #fbbf24;
-    --em-gold-soft: #f59e0b;
     --em-navy: #06101c;
-    --em-teal: #0a1f2e;
-    --em-panel: rgba(8, 28, 42, 0.92);
-    --em-border: rgba(16, 185, 129, 0.18);
   }
-
   html, body, [class*="css"], .stApp {
-    font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-family: 'Outfit', system-ui, sans-serif !important;
   }
-
   .stApp {
     background:
       radial-gradient(1000px 500px at 6% -10%, rgba(16,185,129,0.18) 0%, transparent 55%),
       radial-gradient(900px 480px at 96% 4%, rgba(251,191,36,0.10) 0%, transparent 50%),
-      radial-gradient(700px 500px at 50% 105%, rgba(6,78,92,0.35) 0%, transparent 45%),
       linear-gradient(165deg, #0a1f2e 0%, #06101c 45%, #030b14 100%);
     color: #e8f5f0;
   }
-
-  .block-container {
-    padding-top: 1rem;
-    padding-bottom: 2.6rem;
-    max-width: 1180px;
-  }
+  .block-container { padding-top: 1rem; max-width: 1180px; }
   header[data-testid="stHeader"] { background: transparent; }
-  footer { visibility: hidden; }
-  h1, h2, h3, h4 { letter-spacing: -0.02em; color: #f0fdf8; }
-
-  /* Status strip */
-  .status-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.65rem;
-    margin: 0 0 1rem 0;
-  }
-  .status-chip {
-    flex: 1 1 140px;
-    min-width: 120px;
-    background: linear-gradient(145deg, rgba(8,36,52,0.95) 0%, rgba(4,20,32,0.98) 100%);
-    border: 1px solid rgba(16,185,129,0.28);
-    border-left: 3px solid var(--em-gold);
-    border-radius: 12px;
-    padding: 0.7rem 0.9rem;
-    box-shadow: 0 8px 22px rgba(0,0,0,0.32);
-  }
-  .status-chip .chip-label {
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: #fbbf24;
-    margin-bottom: 0.2rem;
-  }
-  .status-chip .chip-value {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #ecfdf5;
-  }
-
-  /* Hero — Electric Midnight */
   .hero {
-    padding: 1.4rem 1.55rem 1.3rem;
+    padding: 1.35rem 1.5rem;
     border-radius: 18px;
-    background:
-      linear-gradient(135deg, rgba(16,185,129,0.20) 0%, rgba(6,78,92,0.35) 45%, rgba(251,191,36,0.08) 100%),
-      rgba(4, 22, 34, 0.88);
+    background: linear-gradient(135deg, rgba(16,185,129,0.20), rgba(6,78,92,0.35)), rgba(4,22,34,0.88);
     border: 1px solid rgba(16,185,129,0.32);
     border-left: 4px solid #fbbf24;
-    box-shadow: 0 16px 44px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.05);
-    margin-bottom: 0.75rem;
-    position: relative;
-    overflow: hidden;
+    margin-bottom: 0.85rem;
   }
-  .hero::after {
-    content: "";
-    position: absolute;
-    right: -50px; top: -50px;
-    width: 180px; height: 180px;
-    background: radial-gradient(circle, rgba(251,191,36,0.16), transparent 70%);
-    pointer-events: none;
+  .hero h1 { margin: 0 0 0.35rem 0; font-size: 1.65rem; color: #f0fdf8; }
+  .hero p { margin: 0; color: #a7f3d0; font-size: 0.95rem; }
+  .note-box {
+    background: rgba(251,191,36,0.10);
+    border: 1px solid rgba(251,191,36,0.35);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    margin: 0.5rem 0 1rem;
+    color: #fef3c7;
+    font-size: 0.92rem;
   }
-  .hero h1 {
-    margin: 0.35rem 0 0.45rem 0;
-    font-weight: 800;
-    font-size: clamp(1.45rem, 3.6vw, 1.95rem);
-    line-height: 1.15;
-    color: #f0fdf8;
-  }
-  .hero p { margin: 0; opacity: 0.9; font-size: 0.95rem; line-height: 1.45; color: #c8e6d8; }
-  .hero-kicker {
-    display: inline-block;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #34d399;
-    margin-bottom: 0.25rem;
-  }
-  .ui-version-badge {
-    display: inline-block;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    background: linear-gradient(90deg, #10b981, #059669);
-    color: #041018;
-    font-weight: 700;
-    font-size: 0.72rem;
-    padding: 0.28rem 0.7rem;
-    border-radius: 8px;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.45rem;
-    border: 1px solid rgba(251,191,36,0.55);
-    box-shadow: 0 0 18px rgba(16,185,129,0.35), 0 0 8px rgba(251,191,36,0.2);
-  }
-
-  .grok-badge {
-    display: inline-block;
-    background: linear-gradient(90deg, #fbbf24, #10b981);
-    color: #041018;
-    font-weight: 800;
-    font-size: 0.68rem;
-    padding: 0.18rem 0.55rem;
-    border-radius: 6px;
-    letter-spacing: 0.05em;
-    vertical-align: middle;
-  }
-
-  .step-badge {
-    display: inline-block;
-    background: linear-gradient(90deg, #10b981, #059669);
-    color: #041018;
-    font-weight: 700;
-    font-size: 0.72rem;
-    padding: 0.22rem 0.6rem;
-    border-radius: 999px;
-    margin-bottom: 0.45rem;
-    letter-spacing: 0.04em;
-    box-shadow: 0 4px 14px rgba(16,185,129,0.32);
-  }
-  .step-badge.secondary {
-    background: linear-gradient(90deg, #fbbf24, #f59e0b);
-    color: #1a1200;
-    box-shadow: 0 4px 14px rgba(251,191,36,0.28);
-  }
-  .step-badge.muted {
-    background: rgba(16,185,129,0.14);
-    color: #a7f3d0;
-    border: 1px solid rgba(16,185,129,0.28);
-    box-shadow: none;
-  }
-
-  /* Section cards — left gold border */
-  .ui-card {
-    background: linear-gradient(160deg, rgba(10,40,56,0.95) 0%, rgba(4,18,28,0.98) 100%);
-    border: 1px solid rgba(16,185,129,0.16);
-    border-left: 4px solid #fbbf24;
-    border-radius: 14px;
-    padding: 1rem 1.15rem 1.05rem;
-    margin: 0.55rem 0 1rem 0;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.32);
-  }
-  .ui-card-title {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #fbbf24;
-    margin: 0 0 0.55rem 0;
-  }
-
-  .flow-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    background: rgba(16,185,129,0.10);
+  .beat-card {
+    background: rgba(8,28,42,0.92);
     border: 1px solid rgba(16,185,129,0.22);
-    border-radius: 999px;
-    padding: 0.28rem 0.7rem;
-    font-size: 0.78rem;
-    color: #a7f3d0;
-    margin: 0.15rem 0.25rem 0.15rem 0;
-  }
-
-  /* Sidebar — gold uppercase title */
-  div[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #051820 0%, #030d14 100%);
-    border-right: 1px solid rgba(16,185,129,0.14);
-  }
-  div[data-testid="stSidebar"] .block-container { padding-top: 1rem; }
-  .sidebar-title {
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: #fbbf24;
-    margin: 0 0 0.65rem 0;
-    padding-bottom: 0.4rem;
-    border-bottom: 2px solid rgba(251,191,36,0.35);
-  }
-
-  /* Buttons — emerald gradient */
-  .stButton > button {
-    background: linear-gradient(90deg, #10b981, #059669) !important;
-    color: #041018 !important;
-    border: none !important;
-    font-weight: 700;
-    border-radius: 12px;
-    min-height: 2.6rem;
-    box-shadow: 0 6px 18px rgba(16,185,129,0.28);
-  }
-  .stButton > button:hover {
-    filter: brightness(1.1);
-    border: none !important;
-    color: #041018 !important;
-    box-shadow: 0 8px 22px rgba(16,185,129,0.4);
-  }
-  .stButton > button:disabled {
-    opacity: 0.45;
-    box-shadow: none;
-  }
-  .stDownloadButton > button {
-    background: #0a2434 !important;
-    border: 1px solid rgba(251,191,36,0.35) !important;
-    color: #fbbf24 !important;
-    border-radius: 12px;
-    font-weight: 600;
-    min-height: 2.55rem;
-  }
-  .stDownloadButton > button:hover {
-    border-color: rgba(16,185,129,0.55) !important;
-    color: #34d399 !important;
-  }
-
-  /* Inputs */
-  .stTextInput input, .stTextArea textarea, .stSelectbox [data-baseweb="select"] > div {
-    border-radius: 10px !important;
-  }
-
-  /* Tabs — emerald selected */
-  .stTabs [data-baseweb="tab-list"] {
-    gap: 0.4rem;
-    background: rgba(4, 22, 34, 0.85);
     border-radius: 14px;
-    padding: 0.35rem;
-    border: 1px solid rgba(16,185,129,0.18);
-    margin-bottom: 0.35rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.75rem;
   }
-  .stTabs [data-baseweb="tab"] {
-    border-radius: 10px;
-    padding: 0.55rem 0.95rem;
-    color: #7dd3b0;
+  .chip {
+    display: inline-block;
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(16,185,129,0.35);
+    color: #a7f3d0;
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.75rem;
     font-weight: 600;
+    margin-right: 0.35rem;
   }
-  .stTabs [aria-selected="true"] {
-    background: linear-gradient(90deg, rgba(16,185,129,0.45), rgba(5,150,105,0.28)) !important;
-    color: #ecfdf5 !important;
-    box-shadow: inset 0 -2px 0 #10b981;
+  .timeline {
+    display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.5rem 0 1rem;
   }
-
-  /* Code / prompts */
-  .stCodeBlock {
-    border-radius: 12px !important;
-    border: 1px solid rgba(16,185,129,0.15);
+  .tl-item {
+    flex: 1 1 80px; text-align: center;
+    background: rgba(8,36,52,0.95);
+    border: 1px solid rgba(16,185,129,0.28);
+    border-radius: 10px; padding: 0.55rem 0.4rem;
+    font-size: 0.78rem; color: #ecfdf5;
   }
-
-  /* Mobile */
-  @media (max-width: 768px) {
-    .block-container {
-      padding-left: 0.85rem;
-      padding-right: 0.85rem;
-      padding-top: 0.75rem;
-    }
-    .hero { padding: 1.1rem 1rem; border-radius: 16px; }
-    .ui-card { padding: 0.85rem 0.85rem; border-radius: 14px; }
-    .stTabs [data-baseweb="tab"] { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
-    .status-chip { flex: 1 1 100%; }
-  }
+  .tl-item.on { border-color: #fbbf24; box-shadow: 0 0 0 1px rgba(251,191,36,0.4); }
 </style>
 """,
-    unsafe_allow_html=True,
-)
+        unsafe_allow_html=True,
+    )
 
 
+def _ui_version() -> str:
+    p = Path(__file__).with_name("UI_VERSION.txt")
+    try:
+        return p.read_text(encoding="utf-8").strip()
+    except Exception:
+        return "UI v5.0"
 
-def _init_session() -> None:
+
+def _init_state() -> None:
     defaults = {
-        "brand_val": "",
-        "model_val": "",
-        "colorway_val": "",
-        "specs_val": "",
-        "env_desc_val": "minimalist concrete urban street with natural daylight",
-        "props_desc_val": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
-        "problem_desc_val": (
-            "a tired worker sitting on stairs touching sore feet with work boots beside them"
-        ),
-        "uploader_key": 0,
-        "last_ad_texts": None,
-        "last_grok_pack": None,
-        "last_content_pack": None,
-        "last_content_meta": None,
-        "last_beat_count": 3,
-        "last_video": None,
+        "brand": "",
+        "model": "",
+        "colorway": "",
+        "specs": "",
+        "env_desc": "minimalist concrete urban street with natural daylight",
+        "props_desc": "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent",
+        "problem_desc": "a tired worker sitting on stairs touching sore feet with work boots beside them",
+        "watermark": "SNEAKERNESS.EU",
+        "tag": AUTHENTICITY_TAGS[0],
+        "badge": CATEGORY_BADGES[0],
+        "aspect": ASPECT_OPTIONS[0],
+        "caption_lang": "el",
+        "beat_count": 5,
+        "preset_id": "cinematic_commercial",
+        "music_mood": "soft cinematic",
+        "include_music": True,
+        "include_voice": False,
+        "voice_lang": "en",
+        "bundle": None,
+        "ad_texts": None,
+        "final_mp4": None,
+        "shoe_bytes": None,
+        "shoe_name": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 
-def clear_all_fields() -> None:
-    st.session_state["brand_val"] = ""
-    st.session_state["model_val"] = ""
-    st.session_state["colorway_val"] = ""
-    st.session_state["specs_val"] = ""
-    st.session_state["env_desc_val"] = "minimalist concrete urban street with natural daylight"
-    st.session_state["props_desc_val"] = (
-        "an open Kinfolk magazine, a ceramic cup of cappuccino, brass keys, succulent"
-    )
-    st.session_state["problem_desc_val"] = (
-        "a tired worker sitting on stairs touching sore feet with work boots beside them"
-    )
-    st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
-    st.session_state["last_ad_texts"] = None
-    st.session_state["last_grok_pack"] = None
-    st.session_state["last_content_pack"] = None
-    st.session_state["last_content_meta"] = None
-    st.session_state["last_beat_count"] = 3
-    st.session_state["last_video"] = None
-
-
-def _save_uploads(files, dest: Path) -> list[str]:
-    dest.mkdir(parents=True, exist_ok=True)
-    paths: list[str] = []
-    for i, f in enumerate(files):
-        suffix = Path(f.name).suffix.lower() or ".jpg"
-        if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
-            suffix = ".jpg"
-        p = dest / f"upload_{i:03d}{suffix}"
-        data = f.getvalue()
-        img = Image.open(io.BytesIO(data)).convert("RGB")
-        img.save(p, format="JPEG", quality=95)
-        paths.append(str(p.resolve()))
-    return paths
-
-
-def _product_from_state(
-    brand: str,
-    model_name: str,
-    colorway: str,
-    specs: str,
-    watermark: str,
-    tag: str,
-    badge: str,
-    env_desc: str,
-    props_desc: str,
-    problem_desc: str,
-    hashtags: str,
-    extra: str,
-) -> ProductInfo:
+def _product_info() -> ProductInfo:
     return ProductInfo(
-        brand=brand,
-        model=model_name,
-        colorway=colorway,
-        specs=specs,
-        watermark=watermark,
-        tag=tag,
-        badge=badge,
-        env_desc=env_desc,
-        props_desc=props_desc,
-        problem_desc=problem_desc,
-        hashtags=hashtags,
-        extra=extra,
+        brand=st.session_state.brand,
+        model=st.session_state.model,
+        colorway=st.session_state.colorway,
+        specs=st.session_state.specs,
+        watermark=st.session_state.watermark or "SNEAKERNESS.EU",
+        tag=st.session_state.tag,
+        badge=st.session_state.badge,
+        env_desc=st.session_state.env_desc,
+        props_desc=st.session_state.props_desc,
+        problem_desc=st.session_state.problem_desc,
     )
+
+
+def _aspect_code() -> str:
+    a = st.session_state.aspect or ASPECT_OPTIONS[0]
+    return a.split("·")[0].strip()
+
+
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
+
+def tab_product() -> None:
+    st.subheader("1 · Προϊόν")
+    st.caption("Ανέβασε παπούτσι · συμπλήρωσε brand/model · προαιρετική ανάλυση εικόνας.")
+
+    c1, c2 = st.columns([1, 1.2])
+    with c1:
+        up = st.file_uploader("Φωτογραφία παπουτσιού", type=["jpg", "jpeg", "png", "webp"], key="shoe_up")
+        if up is not None:
+            st.session_state.shoe_bytes = up.getvalue()
+            st.session_state.shoe_name = up.name
+            try:
+                st.image(Image.open(io.BytesIO(st.session_state.shoe_bytes)), use_container_width=True)
+            except Exception:
+                st.info("Προεπισκόπηση μη διαθέσιμη.")
+
+        provider = st.selectbox(
+            "Analyze provider",
+            ["auto", "grok", "gemini"],
+            index=0,
+            help="Απαιτεί XAI_API_KEY / GROK_API_KEY ή GEMINI_API_KEY. Χωρίς key → defaults.",
+        )
+        if st.button("🔍 Analyze shoe (προαιρετικό)", use_container_width=True):
+            data, status = analyze_shoe(
+                st.session_state.shoe_bytes,
+                filename=st.session_state.shoe_name or "shoe.jpg",
+                brand_hint=st.session_state.brand,
+                model_hint=st.session_state.model,
+                provider=provider,  # type: ignore[arg-type]
+            )
+            for k in ("brand", "model", "colorway", "specs", "env_desc", "props_desc", "problem_desc"):
+                if data.get(k):
+                    st.session_state[k] = data[k]
+            st.success(f"Analyze status: {status}")
+
+    with c2:
+        st.session_state.brand = st.text_input("Brand", st.session_state.brand)
+        st.session_state.model = st.text_input("Model", st.session_state.model)
+        st.session_state.colorway = st.text_input("Colorway", st.session_state.colorway)
+        st.session_state.specs = st.text_area("Specs", st.session_state.specs, height=70)
+        st.session_state.env_desc = st.text_area("Environment (EN)", st.session_state.env_desc, height=60)
+        st.session_state.props_desc = st.text_area("Props (EN)", st.session_state.props_desc, height=60)
+        st.session_state.problem_desc = st.text_area("Problem scene (EN)", st.session_state.problem_desc, height=60)
+
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        st.session_state.watermark = st.text_input("Watermark", st.session_state.watermark)
+        st.session_state.aspect = st.selectbox("Aspect", ASPECT_OPTIONS, index=ASPECT_OPTIONS.index(st.session_state.aspect) if st.session_state.aspect in ASPECT_OPTIONS else 0)
+    with r2:
+        st.session_state.caption_lang = st.selectbox(
+            "Caption language",
+            list(CAPTION_LANG_OPTIONS.keys()),
+            format_func=lambda k: CAPTION_LANG_OPTIONS[k],
+            index=0 if st.session_state.caption_lang == "el" else 1,
+        )
+        st.session_state.tag = st.selectbox("Authenticity tag", AUTHENTICITY_TAGS, index=0)
+    with r3:
+        st.session_state.badge = st.selectbox("Category badge", CATEGORY_BADGES, index=0)
+        keys = f"Grok key: {'✅' if has_xai_key() else '—'} · Gemini: {'✅' if has_gemini_key() else '—'}"
+        st.caption(keys)
+
+    st.markdown(
+        '<div class="note-box">💡 Soft discovery: χωρίς BUY/SHOP. Creative prompts στα Αγγλικά · UI στα Ελληνικά.</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def tab_beats() -> None:
+    st.subheader("2 · Beats & prompts")
+    st.markdown(
+        '<div class="note-box">'
+        "<b>Κανόνας v5:</b> Δημιούργησε <b>ΕΝΑ Grok clip ανά beat</b> "
+        "(αντιγραφή shot prompt → Grok video). "
+        "Όχι continuous ως primary. Μετά ανέβασε τα clips στη Συναρμολόγηση."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.session_state.beat_count = st.radio("Αριθμός beats", [3, 5], index=1 if st.session_state.beat_count == 5 else 0, horizontal=True)
+    with c2:
+        presets = list_prompt_presets()
+        labels = {p.id: f"{p.name_el}" for p in presets}
+        ids = list(labels.keys())
+        cur = st.session_state.preset_id if st.session_state.preset_id in ids else ids[0]
+        st.session_state.preset_id = st.selectbox("Style preset", ids, format_func=lambda i: labels[i], index=ids.index(cur))
+    with c3:
+        st.session_state.music_mood = st.text_input("Music mood", st.session_state.music_mood)
+        st.session_state.include_music = st.checkbox("Include music prompts", value=st.session_state.include_music)
+        st.session_state.include_voice = st.checkbox("VO hints in prompts", value=st.session_state.include_voice)
+
+    info = _product_info()
+    if not (info.brand or info.model):
+        st.warning("Συμπλήρωσε τουλάχιστον Brand ή Model στο tab Προϊόν.")
+        return
+
+    if st.button("✨ Δημιουργία prompt pack", type="primary", use_container_width=True):
+        with st.spinner("Building per-beat pack…"):
+            bundle = build_prompt_pack_bundle(
+                info,
+                beat_count=int(st.session_state.beat_count),
+                aspect=_aspect_code(),
+                preset_id=st.session_state.preset_id,
+                include_voice=bool(st.session_state.include_voice),
+                voice_lang=st.session_state.voice_lang,
+                include_music=bool(st.session_state.include_music),
+                music_mood=st.session_state.music_mood,
+            )
+            st.session_state.bundle = bundle
+            st.session_state.ad_texts = bundle["ad_texts"]
+        st.success(f"Pack έτοιμο · {bundle['beat_count']} beats · one clip per beat")
+
+    bundle = st.session_state.bundle
+    if not bundle:
+        st.info("Πάτα «Δημιουργία prompt pack» για beat cards.")
+        return
+
+    cards = bundle["cards"]
+    for card in cards:
+        with st.container():
+            st.markdown(
+                f'<div class="beat-card"><span class="chip">Beat {card.index}</span>'
+                f'<span class="chip">{card.label_el}</span>'
+                f'<span class="chip">~{card.duration_s}s</span>'
+                f'<span class="chip">{card.role}</span></div>',
+                unsafe_allow_html=True,
+            )
+            st.text_area(
+                f"Shot prompt · Beat {card.index}",
+                card.shot_prompt,
+                height=180,
+                key=f"shot_{card.index}",
+            )
+            if card.music_prompt:
+                st.text_area(
+                    f"Music prompt · Beat {card.index}",
+                    card.music_prompt,
+                    height=80,
+                    key=f"music_{card.index}",
+                )
+
+    stem = f"{slug_product(info)}-{bundle['beat_count']}beat"
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        st.download_button("⬇️ TXT pack", pack_txt_bytes(bundle), file_name=f"{stem}.txt", mime="text/plain", use_container_width=True)
+    with d2:
+        st.download_button("⬇️ JSON pack", pack_json_bytes(bundle), file_name=f"{stem}.json", mime="application/json", use_container_width=True)
+    with d3:
+        st.download_button("⬇️ ZIP pack", pack_zip_bytes(bundle, stem=stem), file_name=f"{stem}.zip", mime="application/zip", use_container_width=True)
+
+
+def tab_stitch() -> None:
+    st.subheader("3 · Συναρμολόγηση")
+    st.caption("Ανέβασε ένα clip ανά beat με σειρά · προαιρετικό music bed / VO · Render τελικό MP4.")
+
+    bc = int(st.session_state.beat_count)
+    labels = timeline_labels(bc)
+
+    # Timeline preview
+    items = "".join(f'<div class="tl-item">{lab}</div>' for lab in labels)
+    st.markdown(f'<div class="timeline">{items}</div>', unsafe_allow_html=True)
+
+    uploaded = []
+    cols = st.columns(min(bc, 5))
+    for i in range(bc):
+        with cols[i % len(cols)]:
+            f = st.file_uploader(
+                f"Clip {labels[i]}",
+                type=["mp4", "mov", "webm", "mkv"],
+                key=f"clip_{i}",
+            )
+            uploaded.append(f)
+
+    mcol, vcol = st.columns(2)
+    with mcol:
+        music_up = st.file_uploader("Music bed (προαιρετικό)", type=["mp3", "wav", "m4a", "aac"], key="music_bed")
+    with vcol:
+        vo_up = st.file_uploader("Voiceover (προαιρετικό)", type=["mp3", "wav", "m4a", "aac"], key="vo_bed")
+
+    burn = st.checkbox("Burn watermark στο τελικό", value=True)
+    wm = st.session_state.watermark or "SNEAKERNESS.EU"
+
+    ready = all(u is not None for u in uploaded)
+    if not ready:
+        st.info(f"Χρειάζονται {bc} clips (ένα ανά beat) για render.")
+    if st.button("🎬 Render τελικό MP4", type="primary", disabled=not ready, use_container_width=True):
+        with st.spinner("Stitching clips…"):
+            try:
+                with tempfile.TemporaryDirectory() as td:
+                    td_path = Path(td)
+                    clip_paths = []
+                    for i, up in enumerate(uploaded):
+                        ext = Path(up.name).suffix or ".mp4"
+                        dest = td_path / f"beat_{i+1:02d}{ext}"
+                        save_upload_bytes(up.getvalue(), dest)
+                        clip_paths.append(dest)
+                    music_path = None
+                    vo_path = None
+                    if music_up:
+                        music_path = td_path / f"music{Path(music_up.name).suffix or '.mp3'}"
+                        save_upload_bytes(music_up.getvalue(), music_path)
+                    if vo_up:
+                        vo_path = td_path / f"vo{Path(vo_up.name).suffix or '.mp3'}"
+                        save_upload_bytes(vo_up.getvalue(), vo_path)
+
+                    out_dir = Path(tempfile.gettempdir()) / "sneakerness_v5"
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    out_file = out_dir / f"final_{stamp}.mp4"
+                    result = stitch_clips(
+                        clip_paths,
+                        out_file,
+                        aspect=_aspect_code(),
+                        watermark=wm,
+                        burn_watermark=burn,
+                        music_path=music_path,
+                        voice_path=vo_path,
+                    )
+                    data = Path(result).read_bytes()
+                    st.session_state.final_mp4 = data
+                st.success("Render OK")
+            except Exception as e:
+                st.error(f"Render error: {e}")
+
+    if st.session_state.final_mp4:
+        st.video(st.session_state.final_mp4)
+        st.download_button(
+            "⬇️ Download final MP4",
+            st.session_state.final_mp4,
+            file_name="sneakerness-final.mp4",
+            mime="video/mp4",
+            use_container_width=True,
+        )
+
+
+def tab_captions() -> None:
+    st.subheader("4 · Captions & εξαγωγή")
+    info = _product_info()
+    ad = st.session_state.ad_texts or generate_ad_texts(info)
+    st.session_state.ad_texts = ad
+
+    lang = st.session_state.caption_lang
+    el = generate_caption(info, style="soft_discovery", lang="el", ad_texts=ad)
+    en = generate_caption(info, style="soft_discovery", lang="en", ad_texts=ad)
+
+    st.markdown("#### FB / IG")
+    st.text_area("Meta caption (EN)", ad.get("meta_caption", ""), height=120)
+    st.text_area("Caption EL", el, height=120)
+
+    st.markdown("#### TikTok")
+    st.text_area("TikTok", ad.get("tiktok_caption", ""), height=80)
+
+    st.markdown("#### Pinterest")
+    st.text_area("Pinterest EN", ad.get("pinterest_caption", ""), height=140)
+    st.text_area("Pinterest EL", ad.get("pinterest_caption_el", ""), height=140)
+
+    st.markdown("#### YouTube")
+    yt = ad.get("youtube_caption") or (
+        f"{info.brand} {safe_model_name(info.model)} — soft discovery cutdown · {info.watermark}"
+    )
+    st.text_area("YouTube", yt, height=80)
+
+    st.markdown("#### VO script")
+    vo = (
+        f"{ad.get('hook', '')}\n{ad.get('body', '')}\n{ad.get('cta', '')}"
+    ).strip()
+    st.text_area("Voiceover (EN soft discovery)", vo, height=100)
+
+    # Downloads
+    cap_blob = "\n\n".join(
+        [
+            "=== FB/IG EN ===",
+            ad.get("meta_caption", ""),
+            "=== FB/IG EL ===",
+            el,
+            "=== TIKTOK ===",
+            ad.get("tiktok_caption", ""),
+            "=== PINTEREST EN ===",
+            ad.get("pinterest_caption", ""),
+            "=== PINTEREST EL ===",
+            ad.get("pinterest_caption_el", ""),
+            "=== YOUTUBE ===",
+            yt,
+            "=== VO ===",
+            vo,
+        ]
+    ).encode("utf-8")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.download_button("⬇️ Captions TXT", cap_blob, file_name="sneakerness-captions.txt", mime="text/plain", use_container_width=True)
+    with c2:
+        if st.session_state.final_mp4:
+            st.download_button(
+                "⬇️ Final video",
+                st.session_state.final_mp4,
+                file_name="sneakerness-final.mp4",
+                mime="video/mp4",
+                use_container_width=True,
+            )
+        else:
+            st.caption("Render στο tab Συναρμολόγηση για download video.")
 
 
 def main() -> None:
-    _init_session()
-
-    col_header, col_reset = st.columns([4, 1])
-    with col_header:
-        st.markdown(
-            """
-            <div class="hero">
-              <div class="ui-version-badge">UI v4.3 · Electric Midnight · Voice/Music + Pinterest</div>
-              <div class="hero-kicker">Sneakerness · Marketing Studio</div>
-              <h1>👟 Sneakerness Grok Video Studio</h1>
-              <p>
-                <span class="grok-badge">GROK / xAI</span>
-                &nbsp; Soft-discovery creatives · cinematic prompt pack · Gemini/xAI analyze · τοπικό slideshow
-              </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with col_reset:
-        st.write("")
-        st.write("")
-        if st.button("🧹 Νέο Παπούτσι / Clear", width="stretch"):
-            clear_all_fields()
-            st.rerun()
-
+    _inject_css()
+    _init_state()
+    ver = _ui_version()
     st.markdown(
-        """
-        <div class="status-strip">
-          <div class="status-chip">
-            <div class="chip-label">Analyze</div>
-            <div class="chip-value">Gemini · Grok Vision</div>
-          </div>
-          <div class="status-chip">
-            <div class="chip-label">Grok Pack</div>
-            <div class="chip-value">Cinematic Prompts</div>
-          </div>
-          <div class="status-chip">
-            <div class="chip-label">Slideshow</div>
-            <div class="chip-value">Local MP4 Export</div>
-          </div>
-        </div>
-        """,
+        f"""
+<div class="hero">
+  <h1>👟 Sneakerness Video Studio</h1>
+  <p>{ver} · One Grok clip per beat · Soft discovery · EL UI / EN prompts</p>
+</div>
+""",
         unsafe_allow_html=True,
     )
 
-    with st.sidebar:
-        st.markdown('<div class="sidebar-title">Ρυθμίσεις</div>', unsafe_allow_html=True)
-        st.caption("API keys · captions · aspects")
-        api_ok = has_xai_key()
-        gemini_ok = has_gemini_key()
-        if api_ok:
-            st.success("xAI / Grok key βρέθηκε (XAI_API_KEY / GROK_API_KEY)")
-        else:
-            st.caption("Χωρίς XAI/GROK key")
-        if gemini_ok:
-            from analyze import get_gemini_api_key as _gkey
-            _gk = _gkey() or ""
-            st.success(f"Gemini key βρέθηκε (μήκος {len(_gk)} χαρακτήρες)")
-        else:
-            st.caption("Χωρίς GEMINI_API_KEY")
-        if not api_ok and not gemini_ok:
-            st.info(
-                "Χωρίς API key — πλήρης λειτουργία με manual fields + "
-                "deterministic Grok prompts & captions."
-            )
-        st.caption("Optional keys σε `.env` ή Streamlit Secrets.")
-        st.markdown("---")
-        provider_labels = {
-            "Auto (Grok → Gemini → defaults)": "auto",
-            "Grok (xAI)": "grok",
-            "Gemini": "gemini",
-        }
-        _prov_default = 0
-        if (not api_ok) and gemini_ok:
-            _prov_default = list(provider_labels.keys()).index("Gemini")
-        provider_label = st.selectbox(
-            "Vision analyze provider",
-            list(provider_labels.keys()),
-            index=_prov_default,
-            help="Αν έχεις μόνο Gemini key, διάλεξε Gemini (ή άσε Auto).",
-        )
-        analyze_provider = provider_labels[provider_label]
-        st.markdown("---")
-        include_en_caption = st.checkbox("English captions (soft discovery)", value=True)
-        include_el_caption = st.checkbox("Ελληνικά captions", value=True)
-        dual_aspect = st.checkbox(
-            "Επιπλέον aspects στο pack (9:16 + 1:1 + 16:9 + 2:3)",
-            value=False,
-            help="Αν ενεργό, προσθέτει prompts και για τα υπόλοιπα δημοφιλή ratios.",
-        )
-        st.markdown("---")
-        st.markdown("**Ροή**")
-        st.markdown(
-            '<span class="flow-chip">1 Upload</span>'
-            '<span class="flow-chip">2 Grok Prompts</span>'
-            '<span class="flow-chip">3 Captions/Pack</span>'
-            '<span class="flow-chip">4 Slideshow</span>',
-            unsafe_allow_html=True,
-        )
+    t1, t2, t3, t4 = st.tabs(["1 · Προϊόν", "2 · Beats & prompts", "3 · Συναρμολόγηση", "4 · Captions & εξαγωγή"])
+    with t1:
+        tab_product()
+    with t2:
+        tab_beats()
+    with t3:
+        tab_stitch()
+    with t4:
+        tab_captions()
 
-    # ---- Upload ----
-    st.markdown(
-        '<div class="ui-card"><div class="ui-card-title">Upload &amp; Analyze</div>'
-        '<div class="step-badge">ΒΗΜΑ 1</div></div>',
-        unsafe_allow_html=True,
-    )
-    st.subheader("Φωτογραφία / προϊόν")
-    st.caption("Upload · analyze · συμπλήρωση πεδίων")
-
-    col_up, col_preview = st.columns([2, 1])
-    with col_up:
-        uploaded_file = st.file_uploader(
-            "📷 Ανέβασε φωτογραφία παπουτσιού (ή πολλές για slideshow)",
-            type=["jpg", "jpeg", "png", "webp"],
-            accept_multiple_files=True,
-            key=f"uploader_{st.session_state['uploader_key']}",
-        )
-    with col_preview:
-        if uploaded_file:
-            st.image(uploaded_file[0], caption="Προεπισκόπηση", width="stretch")
-
-    analyze_col1, analyze_col2 = st.columns([2, 1])
-    with analyze_col1:
-        do_analyze = st.button(
-            "🔍 Ανίχνευση / Scene (Auto: Grok → Gemini → defaults)",
-            width="stretch",
-        )
-    with analyze_col2:
-        use_demo = st.checkbox("Demo placeholders", value=False)
-
-    if do_analyze:
-        if not uploaded_file and not use_demo:
-            st.session_state["last_analyze_status"] = "fallback"
-            st.session_state["last_analyze_filled"] = False
-            st.session_state["last_analyze_message"] = "Ανέβασε πρώτα φωτογραφία παπουτσιού."
-            st.rerun()
-        img_bytes = None
-        fname = "shoe.jpg"
-        if uploaded_file:
-            img_bytes = uploaded_file[0].getvalue()
-            fname = uploaded_file[0].name
-        with st.spinner("Ανάλυση με Gemini/Grok…"):
-            data, status = analyze_shoe(
-                image_bytes=img_bytes,
-                filename=fname,
-                brand_hint=st.session_state.get("brand_val", ""),
-                model_hint=st.session_state.get("model_val", ""),
-                provider=analyze_provider,
-            )
-            for src, dst in [
-                ("brand", "brand_val"),
-                ("model", "model_val"),
-                ("colorway", "colorway_val"),
-                ("specs", "specs_val"),
-                ("env_desc", "env_desc_val"),
-                ("props_desc", "props_desc_val"),
-                ("problem_desc", "problem_desc_val"),
-            ]:
-                val = (data.get(src) or "").strip()
-                if val:
-                    st.session_state[dst] = val
-            filled = bool(data.get("brand") or data.get("model") or data.get("colorway"))
-            st.session_state["last_analyze_status"] = status
-            st.session_state["last_analyze_filled"] = filled
-            if status in ("xai", "gemini") and filled:
-                st.session_state["last_analyze_message"] = (
-                    f"OK μέσω {'Gemini' if status == 'gemini' else 'Grok'}: "
-                    f"{data.get('brand','')} {data.get('model','')} / {data.get('colorway','')}"
-                )
-            elif status.startswith("fallback_error:"):
-                st.session_state["last_analyze_message"] = (
-                    "Σφάλμα API: " + status.replace("fallback_error:", "", 1)[:700]
-                )
-            elif status == "fallback_no_key":
-                st.session_state["last_analyze_message"] = (
-                    "Δεν βρέθηκε API key. Secrets: GEMINI_API_KEY = \"...\" μετά Reboot. "
-                    f"Sidebar δείχνει Gemini key: {'ΝΑΙ' if has_gemini_key() else 'ΟΧΙ'}."
-                )
-            else:
-                st.session_state["last_analyze_message"] = (
-                    f"Χωρίς αποτέλεσμα (status={status}). Διάλεξε provider Gemini και ξαναπάτα Ανίχνευση."
-                )
-            st.rerun()
-
-    # Persistent analyze feedback (survives rerun)
-    _st = st.session_state.get("last_analyze_status")
-    _filled = st.session_state.get("last_analyze_filled")
-    _msg = st.session_state.get("last_analyze_message", "")
-    if _st:
-        if _st in ("gemini", "xai") and _filled:
-            st.success(_msg or f"Τελευταία ανίχνευση OK ({_st}).")
-        elif str(_st).startswith("fallback_error"):
-            st.error(_msg or f"Ανίχνευση απέτυχε: {_st}")
-        elif _st:
-            st.warning(_msg or f"Ανίχνευση χωρίς αποτέλεσμα (status: `{_st}`). Sidebar → Gemini + έλεγχος Secrets.")
-
-    # ---- Fields ----
-    st.markdown(
-        '<div class="ui-card"><div class="ui-card-title">Product Details</div>'
-        '<div class="step-badge muted">ΒΗΜΑ 2</div></div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("#### Στοιχεία προϊόντος")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        brand = st.text_input(
-            "Brand / Μάρκα",
-            key="brand_val",
-            placeholder="π.χ. HOKA",
-        )
-    with c2:
-        model_name = st.text_input(
-            "Model / Μοντέλο",
-            key="model_val",
-            placeholder="π.χ. Clifton 9",
-        )
-    with c3:
-        colorway = st.text_input(
-            "Colorway / Χρώμα",
-            key="colorway_val",
-            placeholder="π.χ. Cream / Red",
-        )
-
-    custom_watermark = st.text_input("Watermark / Domain", value="SNEAKERNESS.EU")
-    key_materials = st.text_area(
-        "Specs / Τεχνικά Χαρακτηριστικά",
-        key="specs_val",
-        placeholder="π.χ. CMEVA midsole, engineered mesh…",
-        height=70,
-    )
-
-    col_tag, col_badge = st.columns(2)
-    with col_tag:
-        selected_tag = st.selectbox("Tag (Πάνω Αριστερά)", AUTHENTICITY_TAGS)
-    with col_badge:
-        selected_badge = st.selectbox("Badge (Πάνω Δεξιά)", CATEGORY_BADGES)
-
-    st.markdown("#### 🎨 Δυναμικά Στοιχεία Σκηνής")
-    selected_env = st.text_area(
-        "Περιβάλλον Φόντου (Custom Environment)",
-        key="env_desc_val",
-        height=60,
-    )
-    selected_props = st.text_area(
-        "Αξεσουάρ / EDC Props",
-        key="props_desc_val",
-        height=60,
-    )
-    selected_problem = st.text_area(
-        "Σενάριο Προβλήματος (Custom Problem Scene)",
-        key="problem_desc_val",
-        height=60,
-    )
-
-    hashtags = st.text_input(
-        "Hashtags (προαιρετικό)",
-        value="#Sneakerness #DailyComfort #FootwearTech",
-    )
-    extra = st.text_area("Επιπλέον σημείωση (προαιρετικό)", value="", height=50)
-
-    preset_opts = prompt_preset_options_el()
-    p1, p2 = st.columns(2)
-    with p1:
-        preset_label = st.selectbox("Grok prompt style preset", list(preset_opts.keys()))
-        preset_id = preset_opts[preset_label]
-    with p2:
-        aspect_labels = list(ASPECT_OPTIONS_EL.keys())
-        aspect_choice = st.selectbox(
-            "Κύριο aspect για Grok / slideshow",
-            aspect_labels,
-            index=0,
-            help="9:16 Story · 1:1 Square · 16:9 YouTube · 2:3 Pinterest",
-        )
-    aspect = ASPECT_OPTIONS_EL[aspect_choice]
-
-    info = _product_from_state(
-        brand,
-        model_name,
-        colorway,
-        key_materials,
-        custom_watermark,
-        selected_tag,
-        selected_badge,
-        selected_env,
-        selected_props,
-        selected_problem,
-        hashtags,
-        extra,
-    )
-
-    st.markdown("---")
-
-    tab_grok, tab_caps, tab_local = st.tabs(
-        ["🎬 Grok Prompts", "📲 Captions / Pack", "🎞️ Τοπικό Slideshow"]
-    )
-
-    # =====================================================================
-    # TAB: Grok Prompts (primary)
-    # =====================================================================
-    with tab_grok:
-        st.markdown('<div class="step-badge">ΚΥΡΙΟ</div>', unsafe_allow_html=True)
-        st.subheader("Grok Video Prompt Pack")
-        st.caption(
-            "Copy-paste prompts για Grok video **15 δευτερολέπτων** / Aurora / image-to-video. "
-            "Αγγλικά · cinematic sneaker commercial · soft discovery · celebrity safety."
-        )
-
-        use_xai_copy = st.checkbox(
-            "Χρήση xAI για captions (αν υπάρχει key)",
-            value=False,
-            disabled=not api_ok,
-        )
-
-        st.markdown("#### 🎬 Δομή beats")
-        beat_mode = st.radio(
-            "Beat mode",
-            ["3 beats + continuous (15s)", "5 beats + continuous (~20s)"],
-            index=0,
-            horizontal=True,
-            help="3: Hook / Hero / Macro+CTA · 5: Hook / Product 3-4 / Macro / On-foot / Flat-lay CTA",
-        )
-        beat_count = 5 if beat_mode.startswith("5") else 3
-        st.caption(
-            "5-beat = Image-Studio quality (hard-distinct compositions + per-beat music). "
-            "3-beat παραμένει το κλασικό 15s pack."
-        )
-
-        st.markdown("#### 🎙️ Ήχος στο Grok video prompt")
-        st.caption(
-            "Οδηγίες μέσα στο prompt (Grok/Aurora). Δεν παράγει τοπικό αρχείο ήχου — "
-            "λέει στο μοντέλο αν θέλεις VO + instrumental bed. Music↔beat map μπαίνει αυτόματα."
-        )
-        c_voice, c_music = st.columns(2)
-        with c_voice:
-            include_voice = st.checkbox("Ομιλία / voiceover", value=False)
-            voice_lang = st.selectbox(
-                "Γλώσσα ομιλίας",
-                ["en", "el"],
-                format_func=lambda x: "English" if x == "en" else "Ελληνικά",
-                disabled=not include_voice,
-            )
-        with c_music:
-            include_music = st.checkbox("Μουσική (instrumental bed)", value=True)
-            music_mood = st.selectbox(
-                "Ύφος μουσικής",
-                [
-                    "soft cinematic",
-                    "warm ambient",
-                    "upbeat modern",
-                    "minimal electronic",
-                    "lo-fi calm",
-                ],
-                disabled=not include_music,
-            )
-
-        if st.button("🚀 Δημιουργία Grok Content Pack", type="primary", width="stretch"):
-            if not brand or not model_name:
-                st.error("⚠️ Συμπλήρωσε Brand και Model.")
-            else:
-                with st.spinner("Δημιουργία Grok prompts + soft-discovery captions…"):
-                    if use_xai_copy and api_ok:
-                        ad_texts, copy_err = generate_copy_with_xai(
-                            brand,
-                            model_name,
-                            colorway,
-                            key_materials,
-                            custom_watermark,
-                        )
-                        if copy_err and copy_err != "no_api_key":
-                            st.warning(f"Copy API fallback: {copy_err}")
-                    else:
-                        ad_texts = generate_ad_texts(info)
-
-                    audio_kw = dict(
-                        include_voice=include_voice,
-                        voice_lang=voice_lang,
-                        include_music=include_music,
-                        music_mood=music_mood,
-                    )
-                    pack = build_grok_prompt_pack(
-                        info,
-                        aspect=aspect,
-                        preset_id=preset_id,
-                        include_beats=True,
-                        include_continuous=True,
-                        ad_texts=ad_texts,
-                        beat_count=beat_count,
-                        **audio_kw,
-                    )
-                    if dual_aspect:
-                        for other in ("9:16", "1:1", "16:9", "2:3"):
-                            if other == aspect:
-                                continue
-                            pack.update(
-                                build_grok_prompt_pack(
-                                    info,
-                                    aspect=other,
-                                    preset_id=preset_id,
-                                    include_beats=True,
-                                    include_continuous=True,
-                                    ad_texts=ad_texts,
-                                    beat_count=beat_count,
-                                    **audio_kw,
-                                )
-                            )
-
-                    meta_obj = build_pack_meta_json(
-                        info,
-                        ad_texts,
-                        aspect=aspect,
-                        beat_count=beat_count,
-                        music_mood=music_mood,
-                        include_voice=include_voice,
-                        voice_lang=voice_lang,
-                    )
-                    content = build_content_pack_text(
-                        info,
-                        pack,
-                        ad_texts,
-                        meta_json=meta_obj,
-                        beat_count=beat_count,
-                    )
-                    st.session_state["last_ad_texts"] = ad_texts
-                    st.session_state["last_grok_pack"] = pack
-                    st.session_state["last_content_pack"] = content
-                    st.session_state["last_content_meta"] = meta_obj
-                    st.session_state["last_beat_count"] = beat_count
-                st.success("Έτοιμο — Grok prompts παρακάτω · captions στο tab Captions/Pack.")
-
-        pack = st.session_state.get("last_grok_pack")
-        ad_texts = st.session_state.get("last_ad_texts")
-        content = st.session_state.get("last_content_pack")
-
-        if pack:
-            st.markdown(
-                '<div class="ui-card"><div class="ui-card-title">Copy-paste into Grok</div>'
-                '<div style="opacity:0.85;font-size:0.9rem;margin:0">'
-                'Beats (3 ή 5) + continuous + music bed — ready for Grok video / image-to-video.'
-                '</div></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown("#### ✨ Grok Video Prompts")
-            for label, body in pack.items():
-                st.markdown(f"**{label}**")
-                st.code(body, language="text")
-            st.info("Captions & downloadable Content Pack → tab **Captions / Pack**.")
-        else:
-            st.info("Πάτα «Δημιουργία Grok Content Pack» για prompts βελτιστοποιημένα για Grok.")
-
-    # =====================================================================
-    # TAB: Captions / Pack
-    # =====================================================================
-    with tab_caps:
-        st.markdown('<div class="step-badge secondary">CAPTIONS</div>', unsafe_allow_html=True)
-        st.subheader("Soft Discovery Captions & Content Pack")
-        st.caption("EN soft-discovery captions · Ελληνικά · downloadable .txt pack.")
-
-        pack = st.session_state.get("last_grok_pack")
-        ad_texts = st.session_state.get("last_ad_texts")
-        content = st.session_state.get("last_content_pack")
-
-        # Always offer live Pinterest from current product fields (even before pack)
-        if st.button("🔄 Ανανέωση captions από πεδία προϊόντος", key="refresh_caps"):
-            fresh = generate_ad_texts(info)
-            st.session_state["last_ad_texts"] = fresh
-            ad_texts = fresh
-            st.success("Captions ανανεώθηκαν — δες και το Pinterest tab.")
-
-        if ad_texts or content or (brand and model_name):
-            st.markdown("### 📲 Soft Discovery Captions")
-            ad_texts = dict(ad_texts or {})
-            # Backfill Pinterest if missing (old session / partial deploy / xAI JSON)
-            if not ad_texts.get("pinterest_caption") or not ad_texts.get("pinterest_caption_el"):
-                fresh = generate_ad_texts(info)
-                ad_texts.setdefault("pinterest_caption", fresh["pinterest_caption"])
-                ad_texts.setdefault("pinterest_caption_el", fresh["pinterest_caption_el"])
-                if not ad_texts.get("pinterest_caption"):
-                    ad_texts["pinterest_caption"] = fresh["pinterest_caption"]
-                if not ad_texts.get("pinterest_caption_el"):
-                    ad_texts["pinterest_caption_el"] = fresh["pinterest_caption_el"]
-                for k, v in fresh.items():
-                    ad_texts.setdefault(k, v)
-                st.session_state["last_ad_texts"] = ad_texts
-
-            pin_en_val = ad_texts.get("pinterest_caption") or generate_ad_texts(info)["pinterest_caption"]
-            pin_el_val = ad_texts.get("pinterest_caption_el") or generate_ad_texts(info)["pinterest_caption_el"]
-
-            t1, t2, t3, t4 = st.tabs(
-                ["📘 FB / IG (EN)", "🎵 TikTok (EN)", "📌 Pinterest", "🇬🇷 Ελληνικά"]
-            )
-            with t1:
-                meta = (
-                    f"{ad_texts.get('meta_caption', '')}\n\n"
-                    f"{ad_texts.get('hashtags_meta', '')}"
-                )
-                st.text_area(
-                    "FB / IG",
-                    value=meta if include_en_caption else "",
-                    height=160,
-                )
-            with t2:
-                st.text_area(
-                    "TikTok",
-                    value=ad_texts.get("tiktok_caption", "") if include_en_caption else "",
-                    height=120,
-                )
-            with t3:
-                st.caption("Short · scannable · keyword-forward (Pinterest SEO) — EN + EL stacked")
-                st.text_area(
-                    "📌 Pinterest EN",
-                    value=pin_en_val,
-                    height=220,
-                    key="pin_en_area_v43",
-                )
-                st.text_area(
-                    "📌 Pinterest EL",
-                    value=pin_el_val,
-                    height=220,
-                    key="pin_el_area_v43",
-                )
-            with t4:
-                st.text_area(
-                    "Ελληνικά (FB/IG style)",
-                    value=ad_texts.get("caption_el", ""),
-                    height=180,
-                )
-
-            if content:
-                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                base = f"{brand}_{safe_model_name(model_name)}_{stamp}"
-                base = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in base)
-                safe_name = f"{base}.txt"
-                st.download_button(
-                    "📥 Download Content Pack (.txt)",
-                    data=content,
-                    file_name=safe_name,
-                    mime="text/plain",
-                    width="stretch",
-                    key="dl_txt_pack",
-                )
-                meta_obj = st.session_state.get("last_content_meta") or {
-                    "product": f"{brand} {safe_model_name(model_name)}".strip(),
-                    "watermark": custom_watermark,
-                    "beat_count": st.session_state.get("last_beat_count", 3),
-                }
-                zip_buf = io.BytesIO()
-                with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                    zf.writestr("prompts.txt", content)
-                    zf.writestr(
-                        "meta.json",
-                        json.dumps(meta_obj, ensure_ascii=False, indent=2),
-                    )
-                st.download_button(
-                    "📦 Download Content Pack (.zip · prompts.txt + meta.json)",
-                    data=zip_buf.getvalue(),
-                    file_name=f"{base}.zip",
-                    mime="application/zip",
-                    width="stretch",
-                    key="dl_zip_pack",
-                )
-                out_dir = Path("output")
-                out_dir.mkdir(exist_ok=True)
-                try:
-                    (out_dir / safe_name).write_text(content, encoding="utf-8")
-                    (out_dir / f"{base}_meta.json").write_text(
-                        json.dumps(meta_obj, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
-                    st.caption(f"Αποθηκεύτηκε επίσης στο `output/{safe_name}` (+ meta.json)")
-                except Exception:
-                    pass
-        else:
-            st.info(
-                "Δημιούργησε πρώτα Content Pack από το tab Grok Prompts για captions & download."
-            )
-
-        # =====================================================================
-    # TAB: Local Slideshow (secondary)
-    # =====================================================================
-    with tab_local:
-        st.markdown('<div class="step-badge muted">ΔΕΥΤΕΡΕΥΟΝ</div>', unsafe_allow_html=True)
-        st.subheader("Τοπικό Slideshow MP4")
-        st.markdown(
-            """
-**Τι κάνει ακριβώς:** παίρνει τις φωτό που ανέβασες, τις κόβει στο aspect του template,
-προσθέτει (προαιρετικά) burn-in τίτλο/υπότιτλο, Ken Burns / transitions, και τις ενώνει σε **ένα MP4**.
-
-- Δεν είναι AI video (όπως Grok) — είναι κλασικό slideshow από τις εικόνες σου.
-- Δεν φτιάχνει ομιλία ούτε μουσική αρχείο (μόνο οπτικά + κείμενο πάνω στις φωτό).
-- Χρήσιμο για γρήγορο draft / placeholder όταν δεν θες ακόμα Grok render.
-"""
-        )
-
-        work = Path(tempfile.gettempdir()) / "sneaker_video_studio"
-        work.mkdir(parents=True, exist_ok=True)
-
-        image_paths: list[str] = []
-        if use_demo:
-            image_paths = make_placeholder_images(work / "demo", n=3)
-            st.info("Demo placeholders ενεργά.")
-        elif uploaded_file:
-            image_paths = _save_uploads(uploaded_file, work / "uploads")
-            st.success(f"Φορτώθηκαν {len(image_paths)} εικόνες.")
-        else:
-            st.warning("Ανέβασε φωτό ή ενεργοποίησε demo placeholders.")
-
-        if image_paths:
-            cols = st.columns(min(4, len(image_paths)))
-            for i, p in enumerate(image_paths[:8]):
-                with cols[i % len(cols)]:
-                    st.image(p, width="stretch", caption=f"#{i+1}")
-
-        opts = template_options_el()
-        label = st.selectbox("Οπτικό template (slideshow)", list(opts.keys()), index=0)
-        tid = opts[label]
-        tmpl = get_template(tid)
-        st.caption(
-            f"{tmpl.description_el} · {tmpl.aspect} · transition={tmpl.transition} · "
-            f"ken_burns={tmpl.ken_burns}"
-        )
-
-        lang_video = st.selectbox(
-            "Γλώσσα burn-in",
-            ["el", "en"],
-            format_func=lambda x: "Ελληνικά" if x == "el" else "English",
-        )
-        burn_hook = st.checkbox("Burn-in τίτλος στο βίντεο", value=True)
-        duration = st.slider("Διάρκεια ανά φωτό (δευτ.)", 0.8, 4.0, 2.0, 0.1)
-
-        hook = video_hook_text(info, lang=lang_video)
-        sub = video_subtitle_text(info, lang=lang_video)
-        st.caption(f"On-video hook: **{hook}** · subtitle: **{sub}**")
-
-        can_run = len(image_paths) > 0
-        if st.button("🎬 Δημιουργία τοπικού MP4", disabled=not can_run, width="stretch"):
-            with st.spinner("Rendering slideshow…"):
-                out_path = work / "output" / f"sneaker_{tid}.mp4"
-                try:
-                    dur = duration
-                    if abs(duration - 2.0) < 0.05:
-                        dur = tmpl.default_duration
-                    result = build_slideshow(
-                        image_paths=image_paths,
-                        template=tmpl,
-                        output_path=out_path,
-                        title=hook if burn_hook else "",
-                        subtitle=sub if burn_hook else "",
-                        duration_per_image=dur,
-                        fps=24,
-                        burn_captions=burn_hook,
-                    )
-                    st.session_state["last_video"] = result
-                    st.success("Έτοιμο!")
-                except Exception as e:
-                    st.error(f"Αποτυχία render: {e}")
-                    st.exception(e)
-
-        if st.session_state.get("last_video") and Path(st.session_state["last_video"]).is_file():
-            vp = st.session_state["last_video"]
-            st.video(vp)
-            with open(vp, "rb") as f:
-                st.download_button(
-                    "⬇️ Download MP4",
-                    data=f,
-                    file_name=Path(vp).name,
-                    mime="video/mp4",
-                    width="stretch",
-                )
-
-        with st.expander("Όλα τα slideshow templates"):
-            for t in list_templates():
-                st.markdown(
-                    f"- **{t.name_el}** (`{t.id}`) — {t.aspect}, prompt_preset=`{t.prompt_preset_id}`"
-                )
-
-        with st.expander("Grok prompt style presets"):
-            for p in list_prompt_presets():
-                st.markdown(f"- **{p.name_el}** — {p.mood}")
+    st.caption("Sneakerness.eu · Soft discovery CTAs · No hard BUY/SHOP")
 
 
 if __name__ == "__main__":

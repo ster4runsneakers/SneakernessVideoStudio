@@ -1,12 +1,15 @@
-"""Grok (xAI) video prompt pack builder — cinematic sneaker commercial beats.
+"""Grok (xAI) per-beat video prompt pack — Sneakerness Video Studio v5.
 
-Primary deliverable: copy-paste ready prompts for Grok video / Aurora / image-to-video.
-Image-Studio quality: distinct beats, per-beat music, brand/logo locks, required watermark.
+PRIMARY workflow: generate ONE Grok clip per beat (3 or 5), then stitch in-app.
+Continuous multi-beat prompts are NOT the primary UX (omitted by default).
+
+Image-Studio quality: distinct beat roles, music↔beat map, brand letter-by-letter
+locks, REQUIRED watermark exactly once (bottom-right), no morph / no hard-sell UI.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from captions import ProductInfo, generate_ad_texts, safe_model_name, soft_sanitize
@@ -70,20 +73,12 @@ def _quality_block(info: ProductInfo) -> str:
     )
 
 
-GROK_PREAMBLE_15 = (
-    "You are generating a cinematic sneaker commercial video for Grok (xAI). "
-    "TARGET TOTAL DURATION: exactly 15 seconds (15s). "
+GROK_PREAMBLE_CLIP = (
+    "You are generating ONE cinematic sneaker commercial CLIP for Grok (xAI). "
+    "This is a SINGLE beat (~4–5 seconds) — not a continuous multi-beat reel. "
     "Photorealistic motion, premium commercial grade, natural physics, smooth camera. "
     "Frame composition must match the requested aspect ratio exactly. "
-    "Pacing must fit a finished 15-second social ad — no longer, no shorter."
-)
-
-GROK_PREAMBLE_20 = (
-    "You are generating a cinematic sneaker commercial video for Grok (xAI). "
-    "TARGET TOTAL DURATION: approximately 20 seconds (18–22s carousel cutdown). "
-    "Photorealistic motion, premium commercial grade, natural physics, smooth camera. "
-    "Frame composition must match the requested aspect ratio exactly. "
-    "Five hard-distinct beats; pacing must fit a finished social ad."
+    "End on a clean hold ready for an editorial cut to the next beat."
 )
 
 
@@ -91,7 +86,6 @@ GROK_PREAMBLE_20 = (
 # Music ↔ beat maps
 # ---------------------------------------------------------------------------
 
-# 3-beat × 5s = 15s
 MUSIC_MAP_3: Dict[str, str] = {
     "beat1": (
         "Music mood (beat 1 / Hook): Soft tension / question — sparse intro, "
@@ -105,13 +99,8 @@ MUSIC_MAP_3: Dict[str, str] = {
         "Music mood (beat 3 / Macro+CTA): Texture then soft landing — short percussive "
         "or filtered drop into open resolving chord with space under VO. No vocals."
     ),
-    "continuous": (
-        "Music: one continuous 15s bed — sparse intro (0–5) → reveal melody (5–10) → "
-        "texture hit into soft resolve (10–15). No vocals, no licensed songs."
-    ),
 }
 
-# 5-beat ~20s (Image-Studio parity)
 MUSIC_MAP_5: Dict[str, str] = {
     "beat1": (
         "Music mood (beat 1 / Hook): Soft tension / question — sparse intro, "
@@ -132,10 +121,6 @@ MUSIC_MAP_5: Dict[str, str] = {
     "beat5": (
         "Music mood (beat 5 / Flat-lay CTA): Soft landing / follow — resolve to open "
         "ending, hold last chord; leave room for voice CTA. No vocals."
-    ),
-    "continuous": (
-        "Music: one continuous ~20s bed — sparse intro → reveal melody → texture hit → "
-        "forward groove (~115 BPM) → open resolve for VO. No vocals, no licensed songs."
     ),
 }
 
@@ -195,7 +180,6 @@ def get_prompt_preset(preset_id: str) -> PromptStylePreset:
 
 
 def _aspect_label(aspect: str) -> str:
-    """Short label for UI keys / pack titles."""
     a = (aspect or "").strip()
     if a.startswith("9:16"):
         return "9:16"
@@ -209,7 +193,6 @@ def _aspect_label(aspect: str) -> str:
 
 
 def _aspect_line(aspect: str) -> str:
-    """Explicit aspect framing instructions for Grok video prompts."""
     a = (aspect or "").strip()
     if a.startswith("9:16"):
         return (
@@ -239,46 +222,32 @@ def _normalize_beat_count(beat_count: int) -> int:
     return 5 if int(beat_count) == 5 else 3
 
 
-def _duration_hint(beat: bool, beat_index: int, beat_count: int = 3) -> str:
-    """Duration windows for 3-beat (15s) or 5-beat (~20s) packs."""
+def _duration_hint(beat_index: int, beat_count: int = 3) -> str:
     bc = _normalize_beat_count(beat_count)
     if bc == 5:
         windows = {
-            1: "0:00–0:04 (first ~4s of ~20s ad)",
+            1: "0:00–0:04 (first ~4s of ~20s stitched ad)",
             2: "0:04–0:08 (product reveal)",
             3: "0:08–0:12 (macro)",
             4: "0:12–0:17 (on-foot)",
             5: "0:17–0:22 (flat-lay CTA)",
         }
-        if beat:
-            window = windows.get(beat_index, "~4 seconds within the ~20s ad")
-            return (
-                f"DURATION: ~4–5 seconds for this beat ({window}). "
-                f"Part of a complete ~20-second (18–22s) five-beat video. "
-                f"Tight pacing, one clear action, end on a clean hold for the cut."
-            )
+        window = windows.get(beat_index, "~4 seconds within the ~20s stitched ad")
         return (
-            "DURATION: approximately 20 seconds total (18–22s finished video). "
-            "Five beats: 0–4s hook, 4–8s product, 8–12s macro, 12–17s on-foot, "
-            "17–22s flat-lay CTA. Do not invent carousel UI."
-        )
-
-    windows = {
-        1: "0:00–0:05 (first 5 seconds of the 15s ad)",
-        2: "0:05–0:10 (middle 5 seconds of the 15s ad)",
-        3: "0:10–0:15 (final 5 seconds of the 15s ad)",
-    }
-    if beat:
-        window = windows.get(beat_index, "exactly 5 seconds within the 15s ad")
-        return (
-            f"DURATION: exactly 5 seconds for this beat ({window}). "
-            f"Part of a complete 15-second video (3 beats × 5s). "
+            f"DURATION: ~4–5 seconds for this SINGLE clip ({window}). "
+            f"ONE beat only — generate this clip alone; the editor will stitch beats later. "
             f"Tight pacing, one clear action, end on a clean hold for the cut."
         )
+    windows = {
+        1: "0:00–0:05 (first 5 seconds of the 15s stitched ad)",
+        2: "0:05–0:10 (middle 5 seconds of the 15s stitched ad)",
+        3: "0:10–0:15 (final 5 seconds of the 15s stitched ad)",
+    }
+    window = windows.get(beat_index, "exactly 5 seconds within the 15s stitched ad")
     return (
-        "DURATION: exactly 15 seconds total (15s finished video). "
-        "Three beats inside one timeline: 0–5s hook, 5–10s hero, 10–15s macro+CTA. "
-        "Do not exceed 15 seconds; do not end before 15 seconds."
+        f"DURATION: exactly ~5 seconds for this SINGLE clip ({window}). "
+        f"ONE beat only — generate this clip alone; the editor will stitch beats later. "
+        f"Tight pacing, one clear action, end on a clean hold for the cut."
     )
 
 
@@ -291,7 +260,6 @@ def _product_core(info: ProductInfo) -> str:
 
 
 def _overlay_bits(info: ProductInfo, ad_texts: Dict[str, str], which: str) -> str:
-    """Soft overlays only — required watermark is in quality block; no invented badges."""
     wm = info.watermark.strip() or "SNEAKERNESS.EU"
     if which in ("beat1", "hook"):
         text = ad_texts.get("slide1_text") or ad_texts.get("hook", "")
@@ -321,12 +289,7 @@ def _overlay_bits(info: ProductInfo, ad_texts: Dict[str, str], which: str) -> st
             f"Soft discovery CTA overlay (optional): '{text}'. "
             f"No buy buttons, no LEARN MORE chrome. Soft typography only."
         )
-    # continuous
-    return (
-        f"Minimal overlays only at beat transitions: hook then product name then soft CTA "
-        f"'{ad_texts.get('cta', f'Discover more at {wm}')}'. "
-        f"No invented badges. Soft typography only."
-    )
+    return "Minimal soft typography only. No invented badges."
 
 
 def _music_line(beat_key: str, beat_count: int, music_mood: str, include_music: bool) -> str:
@@ -334,7 +297,7 @@ def _music_line(beat_key: str, beat_count: int, music_mood: str, include_music: 
         return "Music: none — natural ambience / foley only."
     bc = _normalize_beat_count(beat_count)
     mmap = MUSIC_MAP_5 if bc == 5 else MUSIC_MAP_3
-    base = mmap.get(beat_key, mmap.get("continuous", ""))
+    base = mmap.get(beat_key, "")
     mood = (music_mood or "soft cinematic").strip()
     return (
         f"{base} Overall bed style: original {mood} instrumental only "
@@ -348,11 +311,10 @@ def _audio_direction(
     voice_lang: str = "en",
     include_music: bool = True,
     music_mood: str = "soft cinematic",
-    beat: str = "continuous",
+    beat: str = "beat1",
     beat_count: int = 3,
     ad_texts: Optional[Dict[str, str]] = None,
 ) -> str:
-    """Build explicit audio / VO / music cues — music↔beat map baked in."""
     ad_texts = ad_texts or {}
     bits: List[str] = []
     bits.append(_music_line(beat, beat_count, music_mood, include_music))
@@ -377,7 +339,7 @@ def _audio_direction(
         elif beat in ("beat5", "cta", "beat3") or beat.endswith("cta"):
             line = cta
         else:
-            line = f"{hook} Then: {body} End soft CTA: {cta}"
+            line = body
         bits.append(
             f"Voiceover ON — spoken {lang}, single calm narrator, anonymous; "
             f"no celebrity voice imitation. Suggested line: \"{line}\" "
@@ -395,7 +357,7 @@ def build_music_bed_prompt(
     music_mood: str = "soft cinematic",
     aspect: str = "9:16",
 ) -> str:
-    """Standalone full music-bed prompt (Image-Studio MUSIC PROMPT parity)."""
+    """Standalone full music-bed prompt for optional stitch-time bed."""
     bc = _normalize_beat_count(beat_count)
     mood = (music_mood or "soft cinematic").strip()
     product = _product_core(info)
@@ -408,14 +370,14 @@ def build_music_bed_prompt(
             "space under VO (17–22s)."
         )
         dur = "18–22 seconds"
-        format_note = "five-beat carousel cutdown"
+        format_note = "five-beat stitched cutdown"
     else:
         structure = (
             "Structure: sparse ambient/low-drum intro (0–5s) → bright melody + clearer beat "
             "on hero reveal (5–10s) → texture hit into soft resolve with VO space (10–15s)."
         )
         dur = "exactly 15 seconds"
-        format_note = "three-beat social ad"
+        format_note = "three-beat stitched social ad"
 
     prompt = (
         f"MUSIC PROMPT (FULL BED) — Grok / audio bed for sneaker commercial\n"
@@ -431,7 +393,6 @@ def build_music_bed_prompt(
 
 
 def music_lines_for_pack(beat_count: int = 3, music_mood: str = "soft cinematic") -> Dict[str, str]:
-    """Per-beat music lines for export (standalone from video prompts)."""
     bc = _normalize_beat_count(beat_count)
     mmap = MUSIC_MAP_5 if bc == 5 else MUSIC_MAP_3
     mood = (music_mood or "soft cinematic").strip()
@@ -456,12 +417,8 @@ def music_lines_for_pack(beat_count: int = 3, music_mood: str = "soft cinematic"
 
 
 # ---------------------------------------------------------------------------
-# Beat builders — 3-beat (legacy) + 5-beat (Image-Studio)
+# Beat builders — per-beat single clips only
 # ---------------------------------------------------------------------------
-
-def _audio_kw_defaults(**kwargs):
-    return kwargs
-
 
 def build_beat1_hook(
     info: ProductInfo,
@@ -477,15 +434,14 @@ def build_beat1_hook(
     preset = preset or get_prompt_preset("cinematic_commercial")
     ad_texts = ad_texts or generate_ad_texts(info)
     bc = _normalize_beat_count(beat_count)
-    preamble = GROK_PREAMBLE_20 if bc == 5 else GROK_PREAMBLE_15
     problem = info.problem_desc.strip() or (
         "a tired worker sitting on stairs touching sore feet with work boots beside them"
     )
     product = _product_core(info)
     title = (
-        "GROK VIDEO — BEAT 1: HOOK / PROBLEM SCENE (~20s ad · seconds 0–4)"
+        "GROK VIDEO — SINGLE CLIP · BEAT 1: HOOK / PROBLEM (~4–5s)"
         if bc == 5
-        else "GROK VIDEO — BEAT 1: HOOK / PROBLEM SCENE (15s ad · seconds 0–5)"
+        else "GROK VIDEO — SINGLE CLIP · BEAT 1: HOOK / PROBLEM (~5s)"
     )
     scene = (
         f"Scene: Wide establishing lifestyle / problem beat. {problem}. "
@@ -493,7 +449,7 @@ def build_beat1_hook(
         f"face partially obscured or turned away OR legs-only crop (no recognizable celebrity). "
         f"Hero footwear may appear small in frame OR not yet fully revealed. "
         f"CRITICAL: composition MUST be wide/environment — do not repeat a tight studio product still. "
-        f"Later beats will showcase {product}."
+        f"Later beats (separate clips) will showcase {product}."
         if bc == 5
         else (
             f"Scene: Cinematic portrait video of {problem}. High emotion, relatable fatigue, "
@@ -501,10 +457,10 @@ def build_beat1_hook(
             f"(no recognizable celebrity)."
         )
     )
-    prompt = f"""{preamble}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
 {title}
-{_aspect_line(aspect)} {_duration_hint(True, 1, bc)}
+{_aspect_line(aspect)} {_duration_hint(1, bc)}
 
 {scene}
 Camera: {preset.camera}. Mood: {preset.mood}.
@@ -533,14 +489,13 @@ def build_beat2_hero(
     preset = preset or get_prompt_preset("cinematic_commercial")
     ad_texts = ad_texts or generate_ad_texts(info)
     bc = _normalize_beat_count(beat_count)
-    preamble = GROK_PREAMBLE_20 if bc == 5 else GROK_PREAMBLE_15
     product = _product_core(info)
     env = info.env_desc.strip()
     props = info.props_desc.strip()
     title = (
-        "GROK VIDEO — BEAT 2: PRODUCT 3/4 HERO REVEAL (~20s ad · seconds 4–8)"
+        "GROK VIDEO — SINGLE CLIP · BEAT 2: PRODUCT 3/4 HERO (~4–5s)"
         if bc == 5
-        else "GROK VIDEO — BEAT 2: HERO PRODUCT SHOWCASE (15s ad · seconds 5–10)"
+        else "GROK VIDEO — SINGLE CLIP · BEAT 2: HERO PRODUCT (~5s)"
     )
     scene = (
         f"Scene: Clean 3/4 hero reveal of {product} — studio-to-location clarity beat "
@@ -553,10 +508,10 @@ def build_beat2_hero(
             f"EDC lifestyle props nearby: {props}."
         )
     )
-    prompt = f"""{preamble}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
 {title}
-{_aspect_line(aspect)} {_duration_hint(True, 2, bc)}
+{_aspect_line(aspect)} {_duration_hint(2, bc)}
 
 {scene}
 Camera: slow 180° orbit / gentle push-in on the sneaker pair, hero angle three-quarter front. {preset.camera}.
@@ -582,16 +537,16 @@ def build_beat3_specs_cta(
     music_mood: str = "soft cinematic",
     beat_count: int = 3,
 ) -> str:
-    """3-beat mode: macro + soft CTA combined. (5-beat uses dedicated macro/onfoot/cta.)"""
+    """3-beat mode: macro + soft CTA combined."""
     preset = preset or get_prompt_preset("macro_tech")
     ad_texts = ad_texts or generate_ad_texts(info)
     product = _product_core(info)
     env = info.env_desc.strip()
     specs = info.specs.strip() or "cushioning geometry, outsole traction, upper knit/mesh detail"
-    prompt = f"""{GROK_PREAMBLE_15}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
-GROK VIDEO — BEAT 3: SPECS / MACRO + SOFT CTA (15s ad · seconds 10–15)
-{_aspect_line(aspect)} {_duration_hint(True, 3, 3)}
+GROK VIDEO — SINGLE CLIP · BEAT 3: SPECS / MACRO + SOFT CTA (~5s)
+{_aspect_line(aspect)} {_duration_hint(3, 3)}
 
 Scene: Sleek macro detail close-up video of the sole, cushioning, and material texture of {product}, background suggesting {env}.
 Focus on: {specs}.
@@ -621,10 +576,10 @@ def build_beat3_macro(
     ad_texts = ad_texts or generate_ad_texts(info)
     product = _product_core(info)
     specs = info.specs.strip() or "cushioning geometry, outsole traction, upper knit/mesh detail"
-    prompt = f"""{GROK_PREAMBLE_20}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
-GROK VIDEO — BEAT 3: MACRO SOLE / CUSHION (~20s ad · seconds 8–12)
-{_aspect_line(aspect)} {_duration_hint(True, 3, 5)}
+GROK VIDEO — SINGLE CLIP · BEAT 3: MACRO SOLE / CUSHION (~4–5s)
+{_aspect_line(aspect)} {_duration_hint(3, 5)}
 
 Scene: MACRO fill-frame move across the midsole and outsole of {product} — foam texture and rocker/sole curve dominate the frame; no full pair on a bench. Focus on: {specs}.
 Camera: slow glide or subtle orbit; sharp detail. {preset.camera}.
@@ -654,10 +609,10 @@ def build_beat4_onfoot(
     ad_texts = ad_texts or generate_ad_texts(info)
     product = _product_core(info)
     env = info.env_desc.strip() or "outdoor track or urban path"
-    prompt = f"""{GROK_PREAMBLE_20}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
-GROK VIDEO — BEAT 4: ON-FOOT NO-FACE (~20s ad · seconds 12–17)
-{_aspect_line(aspect)} {_duration_hint(True, 4, 5)}
+GROK VIDEO — SINGLE CLIP · BEAT 4: ON-FOOT NO-FACE (~4–5s)
+{_aspect_line(aspect)} {_duration_hint(4, 5)}
 
 Scene: On-foot crop from the waist down of an anonymous adult walking/jogging easy in {env}; natural look; NO face. {product} clearly visible in motion; correct silhouette and branding cues. Benefit/motion energy.
 Camera: tracking / stabilized follow at foot-to-knee height. {preset.camera}.
@@ -688,10 +643,10 @@ def build_beat5_flatlay_cta(
     product = _product_core(info)
     env = info.env_desc.strip()
     props = info.props_desc.strip()
-    prompt = f"""{GROK_PREAMBLE_20}
+    prompt = f"""{GROK_PREAMBLE_CLIP}
 
-GROK VIDEO — BEAT 5: FLAT-LAY / SOFT CTA (~20s ad · seconds 17–22)
-{_aspect_line(aspect)} {_duration_hint(True, 5, 5)}
+GROK VIDEO — SINGLE CLIP · BEAT 5: FLAT-LAY / SOFT CTA (~4–5s)
+{_aspect_line(aspect)} {_duration_hint(5, 5)}
 
 Scene: Top-down flat lay OR clean still of {product} returning to calm — soft landing energy for end card. Environment cue: {env}. Props: {props}. Optional soft end-card space (no giant headline).
 Camera: gentle settle / locked-off beauty. {preset.camera}.
@@ -707,71 +662,16 @@ Style: photoreal commercial flat-lay, calm resolve, {preset.mood}.
     return soft_sanitize(prompt.strip(), info.watermark)
 
 
-def build_continuous_reel(
-    info: ProductInfo,
-    aspect: str = "9:16",
-    preset: Optional[PromptStylePreset] = None,
-    ad_texts: Optional[Dict[str, str]] = None,
-    include_voice: bool = False,
-    voice_lang: str = "en",
-    include_music: bool = True,
-    music_mood: str = "soft cinematic",
-    beat_count: int = 3,
-) -> str:
-    preset = preset or get_prompt_preset("cinematic_commercial")
-    ad_texts = ad_texts or generate_ad_texts(info)
-    bc = _normalize_beat_count(beat_count)
-    product = _product_core(info)
-    problem = info.problem_desc.strip()
-    env = info.env_desc.strip()
-    props = info.props_desc.strip()
-    preamble = GROK_PREAMBLE_20 if bc == 5 else GROK_PREAMBLE_15
-
-    if bc == 5:
-        beats_block = f"""One cohesive ~20-second sneaker commercial with five internal beats
-(hard cuts OK if seamless color-matched). TOTAL RUNTIME ≈ 18–22 SECONDS:
-
-BEAT A (0–4s) HOOK: Open on {problem}. Anonymous / no-face. Wide environment. End ready for cut at ~0:04.
-BEAT B (4–8s) PRODUCT 3/4: Transition to {product} on {env}, props: {props}. Slow orbit / push-in hero. End at ~0:08.
-BEAT C (8–12s) MACRO: Macro of cushioning/outsole only — fill-frame. End at ~0:12.
-BEAT D (12–17s) ON-FOOT: Waist-down no-face stride; natural physics; no morph. End at ~0:17.
-BEAT E (17–22s) FLAT-LAY + SOFT CTA: Top-down calm resolve; hold for soft discovery CTA; finish ~0:22."""
-        title = "GROK VIDEO — CONTINUOUS ~20s FIVE-BEAT REEL"
-    else:
-        beats_block = f"""One cohesive 15-second sneaker commercial with three internal beats
-(hard cuts OK if seamless color-matched). TOTAL RUNTIME = 15 SECONDS:
-
-BEAT A (0–5s) HOOK: Open on {problem}. Anonymous subject, no celebrity likeness. Emotional fatigue → hope. End ready for cut at 0:05.
-BEAT B (5–10s) HERO: Transition to {product} on {env}, props: {props}. Slow orbit / push-in hero showcase. End at 0:10.
-BEAT C (10–15s) MACRO + SOFT CTA: Macro of cushioning/outsole, hold final frame for soft discovery CTA; finish exactly at 0:15."""
-        title = "GROK VIDEO — CONTINUOUS 15-SECOND REEL (exact length: 15 seconds)"
-
-    prompt = f"""{preamble}
-
-{title}
-{_aspect_line(aspect)} {_duration_hint(False, 0, bc)}
-
-{beats_block}
-
-Camera language: {preset.camera}. Mood: {preset.mood}. Lighting: {preset.lighting}.
-{_audio_direction(include_voice=include_voice, voice_lang=voice_lang, include_music=include_music, music_mood=music_mood, beat="continuous", beat_count=bc, ad_texts=ad_texts)}
-{_overlay_bits(info, ad_texts, "continuous")}
-
-Image-to-video note (if starting from uploaded sneaker photo): preserve exact sneaker identity, colorway, and silhouette; animate camera and light only; do not morph logos or warp geometry.
-Aurora / Grok video style: cinematic motion, stable product geometry, commercial grade.
-
-Style: photorealistic 8k sneaker commercial, filmic grade, social-ready.
-{_quality_block(info)}
-"""
-    return soft_sanitize(prompt.strip(), info.watermark)
-
+# ---------------------------------------------------------------------------
+# Pack builder — per-beat only (no continuous primary)
+# ---------------------------------------------------------------------------
 
 def build_grok_prompt_pack(
     info: ProductInfo,
     aspect: str = "9:16",
     preset_id: str = "cinematic_commercial",
     include_beats: bool = True,
-    include_continuous: bool = True,
+    include_continuous: bool = False,  # v5: OFF by default — one clip per beat
     ad_texts: Optional[Dict[str, str]] = None,
     include_voice: bool = False,
     voice_lang: str = "en",
@@ -780,9 +680,8 @@ def build_grok_prompt_pack(
     beat_count: int = 3,
 ) -> Dict[str, str]:
     """
-    Return ordered dict of labeled Grok prompts ready to copy-paste.
-    beat_count: 3 (Hook / Hero / Macro+CTA · 15s) or 5 (Hook / Product 3-4 /
-    Macro / On-foot / Flat-lay CTA · ~20s). Continuous reel always available.
+    Ordered dict of labeled Grok SINGLE-CLIP prompts.
+    include_continuous defaults False in v5 (soft-deprecated; not primary UX).
     """
     preset = get_prompt_preset(preset_id)
     hero_preset = preset
@@ -803,43 +702,33 @@ def build_grok_prompt_pack(
 
     if include_beats:
         if bc == 5:
-            pack[f"Grok · ~20s Beat 1 Hook 0–4s ({ar_label})"] = build_beat1_hook(
+            pack[f"Grok · Beat 1 Hook (~4–5s) ({ar_label})"] = build_beat1_hook(
                 info, aspect, hero_preset, ad_texts, beat_count=5, **audio_kw
             )
-            pack[f"Grok · ~20s Beat 2 Product 3/4 4–8s ({ar_label})"] = build_beat2_hero(
+            pack[f"Grok · Beat 2 Product 3/4 (~4–5s) ({ar_label})"] = build_beat2_hero(
                 info, aspect, hero_preset, ad_texts, beat_count=5, **audio_kw
             )
-            pack[f"Grok · ~20s Beat 3 Macro 8–12s ({ar_label})"] = build_beat3_macro(
+            pack[f"Grok · Beat 3 Macro (~4–5s) ({ar_label})"] = build_beat3_macro(
                 info, aspect, macro_preset, ad_texts, **audio_kw
             )
-            pack[f"Grok · ~20s Beat 4 On-foot 12–17s ({ar_label})"] = build_beat4_onfoot(
+            pack[f"Grok · Beat 4 On-foot (~4–5s) ({ar_label})"] = build_beat4_onfoot(
                 info, aspect, onfoot_preset, ad_texts, **audio_kw
             )
-            pack[f"Grok · ~20s Beat 5 Flat-lay CTA 17–22s ({ar_label})"] = build_beat5_flatlay_cta(
+            pack[f"Grok · Beat 5 Flat-lay CTA (~4–5s) ({ar_label})"] = build_beat5_flatlay_cta(
                 info, aspect, flat_preset, ad_texts, **audio_kw
             )
         else:
-            pack[f"Grok · 15s Beat 1 Hook 0–5s ({ar_label})"] = build_beat1_hook(
+            pack[f"Grok · Beat 1 Hook (~5s) ({ar_label})"] = build_beat1_hook(
                 info, aspect, hero_preset, ad_texts, beat_count=3, **audio_kw
             )
-            pack[f"Grok · 15s Beat 2 Hero 5–10s ({ar_label})"] = build_beat2_hero(
+            pack[f"Grok · Beat 2 Hero (~5s) ({ar_label})"] = build_beat2_hero(
                 info, aspect, hero_preset, ad_texts, beat_count=3, **audio_kw
             )
-            pack[f"Grok · 15s Beat 3 Macro+CTA 10–15s ({ar_label})"] = build_beat3_specs_cta(
+            pack[f"Grok · Beat 3 Macro+CTA (~5s) ({ar_label})"] = build_beat3_specs_cta(
                 info, aspect, macro_preset, ad_texts, beat_count=3, **audio_kw
             )
 
-    if include_continuous:
-        if bc == 5:
-            pack[f"Grok · Continuous ~20s Five-Beat Reel ({ar_label})"] = build_continuous_reel(
-                info, aspect, hero_preset, ad_texts, beat_count=5, **audio_kw
-            )
-        else:
-            pack[f"Grok · Continuous 15s Reel ({ar_label})"] = build_continuous_reel(
-                info, aspect, hero_preset, ad_texts, beat_count=3, **audio_kw
-            )
-
-    # Music export: full bed + per-beat lines
+    # Music: full bed + per-beat lines (for stitch-time bed / Grok audio)
     if include_music:
         pack[f"Music · Full bed ({'5-beat ~20s' if bc == 5 else '3-beat 15s'})"] = (
             build_music_bed_prompt(info, beat_count=bc, music_mood=music_mood, aspect=aspect)
@@ -847,41 +736,14 @@ def build_grok_prompt_pack(
         for label, line in music_lines_for_pack(bc, music_mood).items():
             pack[f"Music · {label}"] = line
 
-    return pack
-
-
-def dual_aspect_pack(
-    info: ProductInfo,
-    preset_id: str = "cinematic_commercial",
-    ad_texts: Optional[Dict[str, str]] = None,
-    aspects: Optional[List[str]] = None,
-    include_voice: bool = False,
-    voice_lang: str = "en",
-    include_music: bool = True,
-    music_mood: str = "soft cinematic",
-    beat_count: int = 3,
-) -> Dict[str, str]:
-    """Generate packs for multiple aspects (default: 9:16 + 1:1)."""
-    ad_texts = ad_texts or generate_ad_texts(info)
-    aspects = aspects or ["9:16", "1:1"]
-    out: Dict[str, str] = {}
-    for ar in aspects:
-        out.update(
-            build_grok_prompt_pack(
-                info,
-                ar,
-                preset_id,
-                True,
-                True,
-                ad_texts,
-                include_voice=include_voice,
-                voice_lang=voice_lang,
-                include_music=include_music,
-                music_mood=music_mood,
-                beat_count=beat_count,
-            )
+    # Continuous intentionally omitted unless caller forces include_continuous=True
+    if include_continuous:
+        pack[f"Grok · Continuous (legacy, not recommended) ({ar_label})"] = (
+            "LEGACY continuous multi-beat prompt is disabled in Video Studio v5. "
+            "Generate ONE Grok clip per beat, then stitch in Συναρμολόγηση."
         )
-    return out
+
+    return pack
 
 
 def build_pack_meta_json(
@@ -894,29 +756,28 @@ def build_pack_meta_json(
     include_voice: bool = False,
     voice_lang: str = "en",
 ) -> Dict:
-    """Structured meta for ZIP meta.json / RAW JSON export section."""
     bc = _normalize_beat_count(beat_count)
     wm = info.watermark.strip() or "SNEAKERNESS.EU"
     brand = info.brand.strip()
     model = safe_model_name(info.model.strip())
     if bc == 5:
         beats = [
-            {"role": "hook", "t": "0-4", "music": "sparse_intro_tension"},
-            {"role": "product_3_4", "t": "4-8", "music": "reveal_melody"},
-            {"role": "macro_sole", "t": "8-12", "music": "texture_hit"},
-            {"role": "on_foot", "t": "12-17", "music": "forward_groove_115bpm"},
-            {"role": "flat_lay_cta", "t": "17-22", "music": "resolve_open_for_vo"},
+            {"role": "hook", "t": "0-4", "duration_s": 4.5, "music": "sparse_intro_tension"},
+            {"role": "product_3_4", "t": "4-8", "duration_s": 4.5, "music": "reveal_melody"},
+            {"role": "macro_sole", "t": "8-12", "duration_s": 4.5, "music": "texture_hit"},
+            {"role": "on_foot", "t": "12-17", "duration_s": 5.0, "music": "forward_groove_115bpm"},
+            {"role": "flat_lay_cta", "t": "17-22", "duration_s": 5.0, "music": "resolve_open_for_vo"},
         ]
         duration = 22
-        fmt = "carousel_5"
+        fmt = "stitched_5"
     else:
         beats = [
-            {"role": "hook", "t": "0-5", "music": "sparse_intro_tension"},
-            {"role": "hero", "t": "5-10", "music": "reveal_melody"},
-            {"role": "macro_cta", "t": "10-15", "music": "texture_to_resolve"},
+            {"role": "hook", "t": "0-5", "duration_s": 5.0, "music": "sparse_intro_tension"},
+            {"role": "hero", "t": "5-10", "duration_s": 5.0, "music": "reveal_melody"},
+            {"role": "macro_cta", "t": "10-15", "duration_s": 5.0, "music": "texture_to_resolve"},
         ]
         duration = 15
-        fmt = "carousel_3"
+        fmt = "stitched_3"
     return {
         "product": f"{brand} {model}".strip(),
         "brand": brand,
@@ -925,6 +786,7 @@ def build_pack_meta_json(
         "specs": info.specs.strip(),
         "aspect": _aspect_label(aspect),
         "format": fmt,
+        "workflow": "one_clip_per_beat",
         "beat_count": bc,
         "duration_sec": duration,
         "watermark": wm,

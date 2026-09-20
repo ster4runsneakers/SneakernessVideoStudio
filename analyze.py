@@ -11,7 +11,6 @@ import base64
 import json
 import os
 import re
-import re
 from typing import Any, Dict, Literal, Optional, Tuple
 
 from captions import sanitize_celebrity_names
