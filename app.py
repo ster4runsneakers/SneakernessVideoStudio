@@ -8,8 +8,10 @@ Compatible entry for Streamlit Cloud / sneakerness-engine style (app.py).
 from __future__ import annotations
 
 import io
+import json
 import os
 import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -38,7 +40,7 @@ from captions import (
     video_hook_text,
     video_subtitle_text,
 )
-from grok_prompts import build_grok_prompt_pack, list_prompt_presets
+from grok_prompts import build_grok_prompt_pack, build_pack_meta_json, list_prompt_presets
 from templates import (
     ASPECT_OPTIONS_EL,
     get_template,
@@ -362,6 +364,8 @@ def _init_session() -> None:
         "last_ad_texts": None,
         "last_grok_pack": None,
         "last_content_pack": None,
+        "last_content_meta": None,
+        "last_beat_count": 3,
         "last_video": None,
     }
     for k, v in defaults.items():
@@ -385,6 +389,8 @@ def clear_all_fields() -> None:
     st.session_state["last_ad_texts"] = None
     st.session_state["last_grok_pack"] = None
     st.session_state["last_content_pack"] = None
+    st.session_state["last_content_meta"] = None
+    st.session_state["last_beat_count"] = 3
     st.session_state["last_video"] = None
 
 
@@ -747,10 +753,24 @@ def main() -> None:
             disabled=not api_ok,
         )
 
+        st.markdown("#### 🎬 Δομή beats")
+        beat_mode = st.radio(
+            "Beat mode",
+            ["3 beats + continuous (15s)", "5 beats + continuous (~20s)"],
+            index=0,
+            horizontal=True,
+            help="3: Hook / Hero / Macro+CTA · 5: Hook / Product 3-4 / Macro / On-foot / Flat-lay CTA",
+        )
+        beat_count = 5 if beat_mode.startswith("5") else 3
+        st.caption(
+            "5-beat = Image-Studio quality (hard-distinct compositions + per-beat music). "
+            "3-beat παραμένει το κλασικό 15s pack."
+        )
+
         st.markdown("#### 🎙️ Ήχος στο Grok video prompt")
         st.caption(
             "Οδηγίες μέσα στο prompt (Grok/Aurora). Δεν παράγει τοπικό αρχείο ήχου — "
-            "λέει στο μοντέλο αν θέλεις VO + instrumental bed."
+            "λέει στο μοντέλο αν θέλεις VO + instrumental bed. Music↔beat map μπαίνει αυτόματα."
         )
         c_voice, c_music = st.columns(2)
         with c_voice:
@@ -806,6 +826,7 @@ def main() -> None:
                         include_beats=True,
                         include_continuous=True,
                         ad_texts=ad_texts,
+                        beat_count=beat_count,
                         **audio_kw,
                     )
                     if dual_aspect:
@@ -820,14 +841,32 @@ def main() -> None:
                                     include_beats=True,
                                     include_continuous=True,
                                     ad_texts=ad_texts,
+                                    beat_count=beat_count,
                                     **audio_kw,
                                 )
                             )
 
-                    content = build_content_pack_text(info, pack, ad_texts)
+                    meta_obj = build_pack_meta_json(
+                        info,
+                        ad_texts,
+                        aspect=aspect,
+                        beat_count=beat_count,
+                        music_mood=music_mood,
+                        include_voice=include_voice,
+                        voice_lang=voice_lang,
+                    )
+                    content = build_content_pack_text(
+                        info,
+                        pack,
+                        ad_texts,
+                        meta_json=meta_obj,
+                        beat_count=beat_count,
+                    )
                     st.session_state["last_ad_texts"] = ad_texts
                     st.session_state["last_grok_pack"] = pack
                     st.session_state["last_content_pack"] = content
+                    st.session_state["last_content_meta"] = meta_obj
+                    st.session_state["last_beat_count"] = beat_count
                 st.success("Έτοιμο — Grok prompts παρακάτω · captions στο tab Captions/Pack.")
 
         pack = st.session_state.get("last_grok_pack")
@@ -838,7 +877,7 @@ def main() -> None:
             st.markdown(
                 '<div class="ui-card"><div class="ui-card-title">Copy-paste into Grok</div>'
                 '<div style="opacity:0.85;font-size:0.9rem;margin:0">'
-                'Beats + continuous prompts ready for Grok video / image-to-video.'
+                'Beats (3 ή 5) + continuous + music bed — ready for Grok video / image-to-video.'
                 '</div></div>',
                 unsafe_allow_html=True,
             )
@@ -929,20 +968,47 @@ def main() -> None:
                 )
 
             if content:
-                safe_name = f"{brand}_{safe_model_name(model_name)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-                safe_name = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in safe_name)
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                base = f"{brand}_{safe_model_name(model_name)}_{stamp}"
+                base = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in base)
+                safe_name = f"{base}.txt"
                 st.download_button(
                     "📥 Download Content Pack (.txt)",
                     data=content,
                     file_name=safe_name,
                     mime="text/plain",
                     width="stretch",
+                    key="dl_txt_pack",
+                )
+                meta_obj = st.session_state.get("last_content_meta") or {
+                    "product": f"{brand} {safe_model_name(model_name)}".strip(),
+                    "watermark": custom_watermark,
+                    "beat_count": st.session_state.get("last_beat_count", 3),
+                }
+                zip_buf = io.BytesIO()
+                with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("prompts.txt", content)
+                    zf.writestr(
+                        "meta.json",
+                        json.dumps(meta_obj, ensure_ascii=False, indent=2),
+                    )
+                st.download_button(
+                    "📦 Download Content Pack (.zip · prompts.txt + meta.json)",
+                    data=zip_buf.getvalue(),
+                    file_name=f"{base}.zip",
+                    mime="application/zip",
+                    width="stretch",
+                    key="dl_zip_pack",
                 )
                 out_dir = Path("output")
                 out_dir.mkdir(exist_ok=True)
                 try:
                     (out_dir / safe_name).write_text(content, encoding="utf-8")
-                    st.caption(f"Αποθηκεύτηκε επίσης στο `output/{safe_name}`")
+                    (out_dir / f"{base}_meta.json").write_text(
+                        json.dumps(meta_obj, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    st.caption(f"Αποθηκεύτηκε επίσης στο `output/{safe_name}` (+ meta.json)")
                 except Exception:
                     pass
         else:

@@ -425,49 +425,140 @@ def video_subtitle_text(info: ProductInfo, lang: str = "el") -> str:
     return "Discover more" if lang == "en" else "Μάθε περισσότερα"
 
 
+def _youtube_caption(info: ProductInfo, ad_texts: Dict[str, str], beat_count: int = 3) -> str:
+    """Short YouTube title + description for Shorts / cutdown."""
+    brand = info.brand.strip()
+    model = safe_model_name(info.model.strip())
+    wm = info.watermark.strip() or "SNEAKERNESS.EU"
+    colorway = info.colorway.strip()
+    title = f"{brand} {model}".strip() or "Sneaker drop"
+    if colorway:
+        title = f"{title} — {colorway}"
+    title = f"{title} ({wm})"
+    if int(beat_count) == 5:
+        flow = "hook → product reveal → macro midsole → on-foot → flat-lay CTA"
+    else:
+        flow = "hook → hero product → macro + soft CTA"
+    body = (
+        f"{title}\n"
+        f"Short vertical cutdown: {flow}. Soft discovery — authentic footwear at {wm}."
+    )
+    return soft_sanitize(body, wm)
+
+
+def _voiceover_block(ad_texts: Dict[str, str], info: ProductInfo) -> str:
+    wm = info.watermark.strip() or "SNEAKERNESS.EU"
+    hook = ad_texts.get("hook") or f"Tired of foot fatigue? Discover more at {wm}."
+    body = ad_texts.get("body") or "Engineered support for all-day comfort."
+    cta = ad_texts.get("cta") or f"Discover more at {wm}."
+    return soft_sanitize(
+        "\n".join(
+            [
+                "Full soft-discovery VO (EN):",
+                f"{hook} {body} {cta}",
+                "",
+                "Alt shorter CTA (last 2s):",
+                cta,
+            ]
+        ),
+        wm,
+    )
+
+
 def build_content_pack_text(
     info: ProductInfo,
     grok_prompts: Dict[str, str],
     ad_texts: Dict[str, str],
+    *,
+    meta_json: Optional[Dict] = None,
+    beat_count: int = 3,
 ) -> str:
-    """Assemble downloadable .txt content pack."""
+    """Assemble downloadable .txt content pack (Image-Studio section layout)."""
+    import json
+
     meta = f"{ad_texts.get('meta_caption', '')}\n\n{ad_texts.get('hashtags_meta', '')}"
     tiktok = ad_texts.get("tiktok_caption", "")
     pin = ad_texts.get("pinterest_caption", "")
     pin_el = ad_texts.get("pinterest_caption_el", "")
     el_cap = ad_texts.get("caption_el", "")
+    youtube = ad_texts.get("youtube_caption") or _youtube_caption(info, ad_texts, beat_count)
+    vo = _voiceover_block(ad_texts, info)
+
+    video_items = [(k, v) for k, v in grok_prompts.items() if not str(k).startswith("Music")]
+    music_items = [(k, v) for k, v in grok_prompts.items() if str(k).startswith("Music")]
+
     parts = [
         "========================================",
-        "GROK VIDEO PROMPT PACK (xAI)",
+        "VIDEO SHOT PROMPTS",
         "========================================",
+        f"Product: {info.brand} {safe_model_name(info.model)}".strip(),
+        f"Colorway: {info.colorway}",
+        f"Watermark: {info.watermark.strip() or 'SNEAKERNESS.EU'}",
+        f"Beats: {beat_count}",
+        "",
     ]
-    for label, body in grok_prompts.items():
-        parts.append(f"\n--- {label} ---\n{body}\n")
+    for label, body in video_items:
+        parts.append(f"--- {label} ---\n{body}\n")
+
     parts += [
         "========================================",
-        "FACEBOOK & INSTAGRAM POST (EN — Soft Discovery)",
+        "MUSIC",
         "========================================",
-        meta,
+    ]
+    if music_items:
+        for label, body in music_items:
+            parts.append(f"--- {label} ---\n{body}\n")
+    else:
+        parts.append("(Music off — no instrumental bed requested.)\n")
+
+    parts += [
+        "========================================",
+        "VOICEOVER",
+        "========================================",
+        vo,
         "",
         "========================================",
-        "TIKTOK / REEL POST (EN)",
+        "FB/IG",
+        "========================================",
+        "FACEBOOK & INSTAGRAM POST (EN — Soft Discovery)",
+        meta,
+        "",
+        "CAPTION (EL — Soft Discovery)",
+        el_cap,
+        "",
+        "========================================",
+        "TIKTOK",
         "========================================",
         tiktok,
         "",
         "========================================",
-        "PINTEREST DESCRIPTION (EN — short / keyword)",
+        "PINTEREST",
         "========================================",
+        "PINTEREST DESCRIPTION (EN — short / keyword)",
         pin,
         "",
-        "========================================",
         "PINTEREST DESCRIPTION (EL — short / keyword)",
-        "========================================",
         pin_el,
         "",
         "========================================",
-        "CAPTION (EL — Soft Discovery)",
+        "YOUTUBE",
         "========================================",
-        el_cap,
+        youtube,
+        "",
+        "========================================",
+        "RAW JSON",
+        "========================================",
+    ]
+    if meta_json is None:
+        meta_json = {
+            "product": f"{info.brand} {safe_model_name(info.model)}".strip(),
+            "colorway": info.colorway,
+            "watermark": info.watermark.strip() or "SNEAKERNESS.EU",
+            "beat_count": beat_count,
+            "vo": ad_texts.get("cta") or ad_texts.get("hook") or "",
+        }
+    parts.append(json.dumps(meta_json, ensure_ascii=False, indent=2))
+    parts += [
         "",
         "========================================",
         "PRODUCT FIELDS",
